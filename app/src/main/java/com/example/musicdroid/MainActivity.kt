@@ -57,10 +57,19 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
         spotifyAppRemote?.let {
             SpotifyAppRemote.disconnect(it)
+            spotifyAppRemote = null
         }
     }
 
     private fun connectToSpotify() {
+        if (CLIENT_ID == "YOUR_CLIENT_ID") {
+            val errorMsg = "CLIENT_ID is not set! Please set your Spotify Client ID in MainActivity.kt"
+            Log.e("MainActivity", errorMsg)
+            statusTextView.text = "Status: Error - Client ID not set"
+            Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show()
+            return
+        }
+
         val connectionParams = ConnectionParams.Builder(CLIENT_ID)
             .setRedirectUri(REDIRECT_URI)
             .showAuthView(true)
@@ -70,6 +79,7 @@ class MainActivity : AppCompatActivity() {
             override fun onConnected(appRemote: SpotifyAppRemote) {
                 spotifyAppRemote = appRemote
                 Log.d("MainActivity", "Connected to Spotify App Remote")
+                statusTextView.text = "Status: Connected to Spotify"
                 pendingUri?.let {
                     launchSpotify(it)
                     pendingUri = null
@@ -78,6 +88,17 @@ class MainActivity : AppCompatActivity() {
 
             override fun onFailure(throwable: Throwable) {
                 Log.e("MainActivity", "Failed to connect to Spotify App Remote: ${throwable.message}", throwable)
+                statusTextView.text = "Status: Connection Failed: ${throwable.message}"
+
+                val errorMessage = when {
+                    throwable.message?.contains("Could not find Spotify app", ignoreCase = true) == true ->
+                        "Spotify app not found or not installed."
+                    throwable.message?.contains("UserNotAuthorizedException", ignoreCase = true) == true ->
+                        "User not authorized. Check Client ID, Redirect URI, and SHA1 in Spotify Dashboard."
+                    else -> "Connection failed: ${throwable.message}"
+                }
+
+                Toast.makeText(this@MainActivity, errorMessage, Toast.LENGTH_LONG).show()
                 pendingUri = null // Clear pending URI on failure
             }
         })
