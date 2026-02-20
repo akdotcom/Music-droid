@@ -6,13 +6,22 @@ import android.nfc.NdefMessage
 import android.nfc.NfcAdapter
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.spotify.android.appremote.api.ConnectionParams
+import com.spotify.android.appremote.api.Connector
+import com.spotify.android.appremote.api.SpotifyAppRemote
 
 class MainActivity : AppCompatActivity() {
+
+    private val CLIENT_ID = "YOUR_CLIENT_ID"
+    private val REDIRECT_URI = "com.example.musicdroid://callback"
+    private var spotifyAppRemote: SpotifyAppRemote? = null
+    private var pendingUri: String? = null
 
     private lateinit var uriEditText: EditText
     private lateinit var triggerButton: Button
@@ -37,6 +46,41 @@ class MainActivity : AppCompatActivity() {
 
         // Check if the activity was launched by an NFC tag
         handleIntent(intent)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        connectToSpotify()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        spotifyAppRemote?.let {
+            SpotifyAppRemote.disconnect(it)
+        }
+    }
+
+    private fun connectToSpotify() {
+        val connectionParams = ConnectionParams.Builder(CLIENT_ID)
+            .setRedirectUri(REDIRECT_URI)
+            .showAuthView(true)
+            .build()
+
+        SpotifyAppRemote.connect(this, connectionParams, object : Connector.ConnectionListener {
+            override fun onConnected(appRemote: SpotifyAppRemote) {
+                spotifyAppRemote = appRemote
+                Log.d("MainActivity", "Connected to Spotify App Remote")
+                pendingUri?.let {
+                    launchSpotify(it)
+                    pendingUri = null
+                }
+            }
+
+            override fun onFailure(throwable: Throwable) {
+                Log.e("MainActivity", "Failed to connect to Spotify App Remote: ${throwable.message}", throwable)
+                pendingUri = null // Clear pending URI on failure
+            }
+        })
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -77,13 +121,38 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchSpotify(uriString: String) {
-        try {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uriString))
-            startActivity(intent)
-        } catch (e: android.content.ActivityNotFoundException) {
-            Toast.makeText(this, "No app found to handle this URI", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            Toast.makeText(this, "Error launching URI: ${e.message}", Toast.LENGTH_LONG).show()
+        val spotifyUri = convertToSpotifyUri(uriString)
+        val remote = spotifyAppRemote
+        if (remote != null && remote.isConnected) {
+            remote.playerApi.play(spotifyUri)
+                .setResultCallback {
+                    Log.d("MainActivity", "Successfully started playing: $spotifyUri")
+                }
+                .setErrorCallback { throwable ->
+                    Log.e("MainActivity", "Error playing URI: ${throwable.message}", throwable)
+                    Toast.makeText(this, "Error playing: ${throwable.message}", Toast.LENGTH_SHORT).show()
+                }
+        } else {
+            pendingUri = spotifyUri
+            Toast.makeText(this, "Connecting to Spotify...", Toast.LENGTH_SHORT).show()
+            connectToSpotify()
         }
+    }
+
+    private fun convertToSpotifyUri(uriString: String): String {
+        if (uriString.startsWith("https://open.spotify.com/")) {
+            try {
+                val uri = Uri.parse(uriString)
+                val segments = uri.pathSegments
+                if (segments.size >= 2) {
+                    val type = segments[0]
+                    val id = segments[1]
+                    return "spotify:$type:$id"
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Failed to parse Spotify web URL: $uriString", e)
+            }
+        }
+        return uriString
     }
 }
