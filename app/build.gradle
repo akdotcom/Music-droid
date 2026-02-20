@@ -4,18 +4,18 @@ plugins {
 }
 
 android {
-    namespace 'com.example.musicdroid'
+    namespace 'com.akdotcom.musicdroid'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.musicdroid"
+        applicationId "com.akdotcom.musicdroid"
         minSdk 24
         targetSdk 34
         versionCode 1
         versionName "1.0"
 
         manifestPlaceholders = [
-            redirectSchemeName: "com.example.musicdroid",
+            redirectSchemeName: "com.akdotcom.musicdroid",
             redirectHostName: "callback",
             redirectPathPattern: ".*"
         ]
