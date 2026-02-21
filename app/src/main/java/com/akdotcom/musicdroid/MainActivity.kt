@@ -24,7 +24,8 @@ import com.spotify.sdk.android.auth.AuthorizationResponse
 class MainActivity : AppCompatActivity() {
 
     private val CLIENT_ID = "c17ce31e345e4449a860aa76fae70f14"
-    private val REDIRECT_URI = "com.akdotcom.musicdroid://callback"
+    private val REDIRECT_SCHEME = "com.akdotcom.musicdroid"
+    private val REDIRECT_URI = "$REDIRECT_SCHEME://callback"
     private var spotifyAppRemote: SpotifyAppRemote? = null
     private var pendingUri: String? = null
 
@@ -63,8 +64,14 @@ class MainActivity : AppCompatActivity() {
                 }
                 AuthorizationResponse.Type.ERROR -> {
                     Log.e("MainActivity", "Auth error: ${response.error}")
-                    statusTextView.text = "Status: Auth Error: ${response.error}"
-                    Toast.makeText(this, "Auth failed: ${response.error}", Toast.LENGTH_LONG).show()
+                    if (response.error == "AUTHENTICATION_SERVICE_UNAVAILABLE") {
+                        Log.d("MainActivity", "Auth service unavailable, falling back to browser")
+                        statusTextView.text = "Status: Auth Service Unavailable, trying browser..."
+                        triggerBrowserAuthFlow()
+                    } else {
+                        statusTextView.text = "Status: Auth Error: ${response.error}"
+                        Toast.makeText(this, "Auth failed: ${response.error}", Toast.LENGTH_LONG).show()
+                    }
                 }
                 else -> {
                     Log.d("MainActivity", "Auth flow cancelled or other")
@@ -114,9 +121,10 @@ class MainActivity : AppCompatActivity() {
 
             override fun onFailure(throwable: Throwable) {
                 Log.e("MainActivity", "Failed to connect to Spotify App Remote: ${throwable.message}", throwable)
-                statusTextView.text = "Status: Connection Failed: ${throwable.message}"
 
-                val errorMessage = throwable.message ?: ""
+                val errorMessage = throwable.message ?: "Unknown error"
+                statusTextView.text = "Status: Connection Failed: $errorMessage"
+
                 if (errorMessage.contains("Explicit user authorization is required", ignoreCase = true)) {
                     Log.d("MainActivity", "Explicit user authorization required, triggering auth flow")
                     triggerAuthFlow()
@@ -124,10 +132,12 @@ class MainActivity : AppCompatActivity() {
                     val userFriendlyError = when {
                         errorMessage.contains("Could not find Spotify app", ignoreCase = true) ->
                             "Spotify app not found or not installed."
-                        errorMessage.contains("UserNotAuthorizedException", ignoreCase = true) ->
-                            "User not authorized. Check Client ID, Redirect URI, and SHA1 in Spotify Dashboard."
+                        errorMessage.contains("UserNotAuthorizedException", ignoreCase = true) ||
+                        errorMessage.contains("not authorized", ignoreCase = true) ->
+                            "User not authorized. Please ensure your SHA1 fingerprint and Redirect URI are registered in the Spotify Developer Dashboard."
                         else -> "Connection failed: $errorMessage"
                     }
+                    Log.e("MainActivity", "Connection failed with user-friendly error: $userFriendlyError")
                     Toast.makeText(this@MainActivity, userFriendlyError, Toast.LENGTH_LONG).show()
                     pendingUri = null // Clear pending URI on failure
                 }
@@ -135,12 +145,28 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
+    private fun getAuthRequest(): AuthorizationRequest {
+        return AuthorizationRequest.Builder(CLIENT_ID, AuthorizationResponse.Type.TOKEN, REDIRECT_URI)
+            .setScopes(arrayOf("streaming", "app-remote-control", "user-read-playback-state", "user-modify-playback-state"))
+            .build()
+    }
+
     private fun triggerAuthFlow() {
-        val builder = AuthorizationRequest.Builder(CLIENT_ID, AuthorizationResponse.Type.TOKEN, REDIRECT_URI)
-        builder.setScopes(arrayOf("streaming", "app-remote-control"))
-        val request = builder.build()
+        val request = getAuthRequest()
+
+        // Always try to use the LoginActivity intent first
         val intent = AuthorizationClient.createLoginActivityIntent(this, request)
-        authLauncher.launch(intent)
+        try {
+            authLauncher.launch(intent)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Could not launch auth intent, falling back to browser", e)
+            triggerBrowserAuthFlow()
+        }
+    }
+
+    private fun triggerBrowserAuthFlow() {
+        val request = getAuthRequest()
+        AuthorizationClient.openLoginInBrowser(this, request)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -150,6 +176,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIntent(intent: Intent) {
+        // Handle Spotify Auth response from browser
+        val uri = intent.data
+        if (uri != null && uri.scheme == REDIRECT_SCHEME) {
+            val response = AuthorizationResponse.fromUri(uri)
+            when (response.type) {
+                AuthorizationResponse.Type.TOKEN -> {
+                    Log.d("MainActivity", "Browser auth success")
+                    connectToSpotify()
+                }
+                AuthorizationResponse.Type.ERROR -> {
+                    Log.e("MainActivity", "Browser auth error: ${response.error}")
+                    statusTextView.text = "Status: Browser Auth Error: ${response.error}"
+                }
+                else -> {
+                    Log.d("MainActivity", "Browser auth cancelled")
+                }
+            }
+            return
+        }
+
         val action = intent.action
         if (NfcAdapter.ACTION_NDEF_DISCOVERED == action) {
             val rawMessages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
