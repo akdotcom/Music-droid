@@ -38,6 +38,21 @@
             <!-- Also handle generic NDEF records if needed,
                  but for now we focus on the requirement "interprets the tag's payload to retrieve a specific URI payload" -->
         </activity>
+
+        <activity
+            android:name="com.spotify.sdk.android.auth.RedirectUriReceiverActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="${redirectHostName}"
+                    android:scheme="${redirectSchemeName}" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>
