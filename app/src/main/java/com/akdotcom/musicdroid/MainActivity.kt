@@ -11,10 +11,15 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.spotify.android.appremote.api.ConnectionParams
 import com.spotify.android.appremote.api.Connector
 import com.spotify.android.appremote.api.SpotifyAppRemote
+import com.spotify.sdk.android.auth.AuthorizationClient
+import com.spotify.sdk.android.auth.AuthorizationRequest
+import com.spotify.sdk.android.auth.AuthorizationResponse
 
 class MainActivity : AppCompatActivity() {
 
@@ -26,6 +31,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var uriEditText: EditText
     private lateinit var triggerButton: Button
     private lateinit var statusTextView: TextView
+
+    private lateinit var authLauncher: ActivityResultLauncher<Intent>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,6 +53,25 @@ class MainActivity : AppCompatActivity() {
 
         // Check if the activity was launched by an NFC tag
         handleIntent(intent)
+
+        authLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val response = AuthorizationClient.getResponse(result.resultCode, result.data)
+            when (response.type) {
+                AuthorizationResponse.Type.TOKEN -> {
+                    Log.d("MainActivity", "Auth success, connecting to Spotify")
+                    connectToSpotify()
+                }
+                AuthorizationResponse.Type.ERROR -> {
+                    Log.e("MainActivity", "Auth error: ${response.error}")
+                    statusTextView.text = "Status: Auth Error: ${response.error}"
+                    Toast.makeText(this, "Auth failed: ${response.error}", Toast.LENGTH_LONG).show()
+                }
+                else -> {
+                    Log.d("MainActivity", "Auth flow cancelled or other")
+                    statusTextView.text = "Status: Auth Cancelled"
+                }
+            }
+        }
     }
 
     override fun onStart() {
@@ -90,18 +116,31 @@ class MainActivity : AppCompatActivity() {
                 Log.e("MainActivity", "Failed to connect to Spotify App Remote: ${throwable.message}", throwable)
                 statusTextView.text = "Status: Connection Failed: ${throwable.message}"
 
-                val errorMessage = when {
-                    throwable.message?.contains("Could not find Spotify app", ignoreCase = true) == true ->
-                        "Spotify app not found or not installed."
-                    throwable.message?.contains("UserNotAuthorizedException", ignoreCase = true) == true ->
-                        "User not authorized. Check Client ID, Redirect URI, and SHA1 in Spotify Dashboard."
-                    else -> "Connection failed: ${throwable.message}"
+                val errorMessage = throwable.message ?: ""
+                if (errorMessage.contains("Explicit user authorization is required", ignoreCase = true)) {
+                    Log.d("MainActivity", "Explicit user authorization required, triggering auth flow")
+                    triggerAuthFlow()
+                } else {
+                    val userFriendlyError = when {
+                        errorMessage.contains("Could not find Spotify app", ignoreCase = true) ->
+                            "Spotify app not found or not installed."
+                        errorMessage.contains("UserNotAuthorizedException", ignoreCase = true) ->
+                            "User not authorized. Check Client ID, Redirect URI, and SHA1 in Spotify Dashboard."
+                        else -> "Connection failed: $errorMessage"
+                    }
+                    Toast.makeText(this@MainActivity, userFriendlyError, Toast.LENGTH_LONG).show()
+                    pendingUri = null // Clear pending URI on failure
                 }
-
-                Toast.makeText(this@MainActivity, errorMessage, Toast.LENGTH_LONG).show()
-                pendingUri = null // Clear pending URI on failure
             }
         })
+    }
+
+    private fun triggerAuthFlow() {
+        val builder = AuthorizationRequest.Builder(CLIENT_ID, AuthorizationResponse.Type.TOKEN, REDIRECT_URI)
+        builder.setScopes(arrayOf("streaming", "app-remote-control"))
+        val request = builder.build()
+        val intent = AuthorizationClient.createLoginActivityIntent(this, request)
+        authLauncher.launch(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
