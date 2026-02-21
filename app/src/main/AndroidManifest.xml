@@ -13,6 +13,9 @@
             <data android:scheme="spotify" />
         </intent>
         <intent>
+            <action android:name="com.spotify.mobile.android.action.AUTHORIZE" />
+        </intent>
+        <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />
         </intent>
         <intent>
@@ -42,6 +45,16 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <!-- Match spotify URIs -->
                 <data android:scheme="spotify" />
+            </intent-filter>
+
+            <!-- Intent filter for Spotify Auth callback (browser fallback) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="${redirectHostName}"
+                    android:scheme="${redirectSchemeName}" />
             </intent-filter>
 
             <!-- Also handle generic NDEF records if needed,
