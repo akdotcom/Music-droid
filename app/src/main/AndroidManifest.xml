@@ -16,6 +16,9 @@
             <action android:name="com.spotify.mobile.android.action.AUTHORIZE" />
         </intent>
         <intent>
+            <action android:name="com.spotify.android.appremote.api.SpotifyAppRemote" />
+        </intent>
+        <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />
         </intent>
         <intent>
@@ -75,6 +78,7 @@
                     android:scheme="${redirectSchemeName}" />
             </intent-filter>
         </activity>
+
     </application>
 
 </manifest>
