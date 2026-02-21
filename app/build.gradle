@@ -47,6 +47,7 @@ dependencies {
     // Spotify SDK
     implementation files('libs/spotify-app-remote.aar')
     implementation 'com.spotify.android:auth:2.1.1'
+    implementation 'androidx.browser:browser:1.7.0'
     implementation 'com.google.code.gson:gson:2.10.1'
 
     testImplementation 'junit:junit:4.13.2'
