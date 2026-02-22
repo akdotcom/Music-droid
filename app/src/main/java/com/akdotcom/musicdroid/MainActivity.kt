@@ -51,6 +51,9 @@ class MainActivity : AppCompatActivity() {
 
         authLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val response = AuthorizationClient.getResponse(result.resultCode, result.data)
+            Log.d("MainActivity", "ActivityResult: resultCode=${result.resultCode}")
+            Log.d("MainActivity", "Auth response: type=${response.type}, error=${response.error}, state=${response.state}")
+
             when (response.type) {
                 AuthorizationResponse.Type.TOKEN -> {
                     Log.d("MainActivity", "Auth success via app, connecting to Spotify")
@@ -59,18 +62,20 @@ class MainActivity : AppCompatActivity() {
                 }
                 AuthorizationResponse.Type.ERROR -> {
                     Log.e("MainActivity", "Auth error: ${response.error}")
+                    statusTextView.text = "Status: Auth Error: ${response.error}"
+                    Toast.makeText(this, "Auth failed: ${response.error}", Toast.LENGTH_LONG).show()
+                    // Browser fallback disabled per request to debug app-based flow
+                    /*
                     if (response.error == "AUTHENTICATION_SERVICE_UNAVAILABLE") {
                         Log.d("MainActivity", "Auth service unavailable (Spotify app issue), falling back to browser")
                         statusTextView.text = "Status: Auth Service Unavailable, trying browser..."
                         triggerBrowserAuthFlow()
-                    } else {
-                        statusTextView.text = "Status: Auth Error: ${response.error}"
-                        Toast.makeText(this, "Auth failed: ${response.error}", Toast.LENGTH_LONG).show()
                     }
+                    */
                 }
                 else -> {
-                    Log.d("MainActivity", "Auth flow cancelled or other")
-                    statusTextView.text = "Status: Auth Cancelled"
+                    Log.d("MainActivity", "Auth flow cancelled or other: ${response.type}")
+                    statusTextView.text = "Status: Auth ${response.type ?: "Unknown"}"
                 }
             }
         }
@@ -141,6 +146,7 @@ class MainActivity : AppCompatActivity() {
             override fun onFailure(throwable: Throwable) {
                 isConnecting = false
                 Log.e("MainActivity", "Failed to connect to Spotify App Remote: ${throwable.message}", throwable)
+                Log.e("MainActivity", "Throwable type: ${throwable.javaClass.name}")
 
                 val errorMessage = throwable.message ?: "Unknown error"
                 statusTextView.text = "Status: Connection Failed: $errorMessage"
@@ -183,13 +189,19 @@ class MainActivity : AppCompatActivity() {
     private fun triggerAuthFlow() {
         val request = getAuthRequest()
 
-        // Always try to use the LoginActivity intent first
+        Log.d("MainActivity", "Triggering app-based auth flow")
         val intent = AuthorizationClient.createLoginActivityIntent(this, request)
+
+        // Log if the intent can be resolved
+        val componentName = intent.resolveActivity(packageManager)
+        Log.d("MainActivity", "Auth intent resolved to: $componentName")
+
         try {
             authLauncher.launch(intent)
         } catch (e: Exception) {
-            Log.e("MainActivity", "Could not launch auth intent, falling back to browser", e)
-            triggerBrowserAuthFlow()
+            Log.e("MainActivity", "Could not launch auth intent", e)
+            statusTextView.text = "Status: Error - Could not launch auth intent: ${e.message}"
+            // triggerBrowserAuthFlow() // Browser fallback disabled per request
         }
     }
 
