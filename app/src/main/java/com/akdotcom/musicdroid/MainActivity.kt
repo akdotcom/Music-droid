@@ -38,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var uriEditText: EditText
     private lateinit var triggerButton: Button
     private lateinit var statusTextView: TextView
+    private lateinit var sha1TextView: TextView
 
     private lateinit var authLauncher: ActivityResultLauncher<Intent>
 
@@ -48,6 +49,10 @@ class MainActivity : AppCompatActivity() {
         uriEditText = findViewById(R.id.uriEditText)
         triggerButton = findViewById(R.id.triggerButton)
         statusTextView = findViewById(R.id.statusTextView)
+        sha1TextView = findViewById(R.id.sha1TextView)
+
+        val sha1 = getCertificateSHA1Fingerprint()
+        sha1TextView.text = sha1 ?: "Could not retrieve SHA1"
 
         authLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val response = AuthorizationClient.getResponse(result.resultCode, result.data)
@@ -334,7 +339,7 @@ class MainActivity : AppCompatActivity() {
                 val md = MessageDigest.getInstance("SHA-1")
                 val publicKey = signatures[0].toByteArray()
                 val fingerprint = md.digest(publicKey)
-                return fingerprint.joinToString(":") { String.format("%02X", it) }
+                return fingerprint.joinToString(":") { String.format("%02X", it) }.uppercase()
             }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error getting SHA1 fingerprint", e)

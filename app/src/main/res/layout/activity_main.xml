@@ -38,4 +38,25 @@
         android:layout_gravity="center_horizontal"
         android:text="Waiting for NFC or Test trigger..."/>
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="Your Device SHA1 (for Spotify Dashboard):"
+        android:textStyle="bold"
+        android:layout_gravity="center_horizontal" />
+
+    <TextView
+        android:id="@+id/sha1TextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:textIsSelectable="true"
+        android:fontFamily="monospace"
+        android:textSize="12sp"
+        android:padding="8dp"
+        android:background="#EEEEEE"
+        android:text="Loading SHA1..."/>
+
 </LinearLayout>
