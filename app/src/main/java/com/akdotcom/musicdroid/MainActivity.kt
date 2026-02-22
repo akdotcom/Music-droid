@@ -10,6 +10,8 @@ import android.util.Log
 import android.widget.Button
 import android.widget.EditText
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
@@ -37,10 +39,22 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var uriEditText: EditText
     private lateinit var triggerButton: Button
+    private lateinit var reconnectButton: Button
+    private lateinit var authButton: Button
     private lateinit var statusTextView: TextView
     private lateinit var sha1TextView: TextView
 
     private lateinit var authLauncher: ActivityResultLauncher<Intent>
+
+    private val connectionHandler = Handler(Looper.getMainLooper())
+    private val connectionTimeoutRunnable = Runnable {
+        if (isConnecting) {
+            isConnecting = false
+            Log.e("MainActivity", "Connection timeout reached!")
+            statusTextView.text = "Status: Connection Timeout - Spotify app not responding"
+            Toast.makeText(this, "Connection timeout. Is Spotify app open and logged in?", Toast.LENGTH_LONG).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,6 +62,8 @@ class MainActivity : AppCompatActivity() {
 
         uriEditText = findViewById(R.id.uriEditText)
         triggerButton = findViewById(R.id.triggerButton)
+        reconnectButton = findViewById(R.id.reconnectButton)
+        authButton = findViewById(R.id.authButton)
         statusTextView = findViewById(R.id.statusTextView)
         sha1TextView = findViewById(R.id.sha1TextView)
 
@@ -94,6 +110,15 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        reconnectButton.setOnClickListener {
+            isConnecting = false // Reset state
+            connectToSpotify()
+        }
+
+        authButton.setOnClickListener {
+            triggerAuthFlow()
+        }
+
         // Check if the activity was launched by an NFC tag
         handleIntent(intent)
 
@@ -114,7 +139,44 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun isSpotifyInstalled(): Boolean {
+        val packages = listOf("com.spotify.music", "com.spotify.lite")
+        var found = false
+        for (packageName in packages) {
+            try {
+                packageManager.getPackageInfo(packageName, 0)
+                Log.d("MainActivity", "Spotify package found: $packageName")
+                found = true
+            } catch (e: PackageManager.NameNotFoundException) {
+                // Not found
+            }
+        }
+
+        // Also check for the App Remote service specifically
+        val remoteIntent = Intent("com.spotify.android.appremote.api.SpotifyAppRemote")
+        val resolveInfo = packageManager.queryIntentServices(remoteIntent, 0)
+        if (resolveInfo.isNotEmpty()) {
+            Log.d("MainActivity", "Spotify App Remote service resolved to ${resolveInfo.size} apps")
+            for (info in resolveInfo) {
+                Log.d("MainActivity", "Service resolved to: ${info.serviceInfo.packageName}")
+            }
+        } else {
+            Log.e("MainActivity", "Spotify App Remote service could NOT be resolved!")
+        }
+
+        if (!found) {
+            Log.e("MainActivity", "No Spotify package found!")
+        }
+        return found
+    }
+
     private fun connectToSpotify() {
+        if (!isSpotifyInstalled()) {
+            statusTextView.text = "Status: Spotify not installed"
+            Toast.makeText(this, "Spotify app not found!", Toast.LENGTH_LONG).show()
+            return
+        }
+
         if (isConnecting) {
             Log.d("MainActivity", "Connection attempt already in progress, skipping")
             return
@@ -129,7 +191,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         isConnecting = true
-        Log.d("MainActivity", "Connecting to Spotify...")
+        Log.d("MainActivity", "Connecting to Spotify with ClientID: $CLIENT_ID and RedirectURI: $REDIRECT_URI")
+        statusTextView.text = "Status: Connecting..."
+
+        // Set a timeout for the connection
+        connectionHandler.removeCallbacks(connectionTimeoutRunnable)
+        connectionHandler.postDelayed(connectionTimeoutRunnable, 15000) // 15 seconds
 
         val connectionParams = ConnectionParams.Builder(CLIENT_ID)
             .setRedirectUri(REDIRECT_URI)
@@ -139,6 +206,7 @@ class MainActivity : AppCompatActivity() {
         SpotifyAppRemote.connect(this, connectionParams, object : Connector.ConnectionListener {
             override fun onConnected(appRemote: SpotifyAppRemote) {
                 isConnecting = false
+                connectionHandler.removeCallbacks(connectionTimeoutRunnable)
                 spotifyAppRemote = appRemote
                 Log.d("MainActivity", "Connected to Spotify App Remote")
                 statusTextView.text = "Status: Connected to Spotify"
@@ -150,6 +218,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onFailure(throwable: Throwable) {
                 isConnecting = false
+                connectionHandler.removeCallbacks(connectionTimeoutRunnable)
                 Log.e("MainActivity", "Failed to connect to Spotify App Remote: ${throwable.message}", throwable)
                 Log.e("MainActivity", "Throwable type: ${throwable.javaClass.name}")
 

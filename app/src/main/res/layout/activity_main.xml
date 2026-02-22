@@ -30,6 +30,27 @@
         android:text="@string/test_mode_button"
         android:layout_gravity="center_horizontal"/>
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginTop="16dp">
+
+        <Button
+            android:id="@+id/reconnectButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Reconnect"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/authButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Force Auth" />
+    </LinearLayout>
+
     <TextView
         android:id="@+id/statusTextView"
         android:layout_width="wrap_content"
