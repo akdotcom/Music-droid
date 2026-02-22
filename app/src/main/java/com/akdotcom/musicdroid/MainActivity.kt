@@ -12,6 +12,7 @@ import android.widget.EditText
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
@@ -20,6 +21,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.spotify.android.appremote.api.ConnectionParams
 import com.spotify.android.appremote.api.Connector
 import com.spotify.android.appremote.api.SpotifyAppRemote
+import com.spotify.protocol.types.PlayerState
 import com.spotify.sdk.android.auth.AuthorizationClient
 import com.spotify.sdk.android.auth.AuthorizationRequest
 import com.spotify.sdk.android.auth.AuthorizationResponse
@@ -43,6 +45,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var authButton: Button
     private lateinit var statusTextView: TextView
     private lateinit var sha1TextView: TextView
+    private lateinit var albumArtImageView: ImageView
+    private lateinit var trackTitleTextView: TextView
+    private lateinit var artistNameTextView: TextView
+    private lateinit var albumNameTextView: TextView
 
     private lateinit var authLauncher: ActivityResultLauncher<Intent>
 
@@ -66,6 +72,10 @@ class MainActivity : AppCompatActivity() {
         authButton = findViewById(R.id.authButton)
         statusTextView = findViewById(R.id.statusTextView)
         sha1TextView = findViewById(R.id.sha1TextView)
+        albumArtImageView = findViewById(R.id.albumArtImageView)
+        trackTitleTextView = findViewById(R.id.trackTitleTextView)
+        artistNameTextView = findViewById(R.id.artistNameTextView)
+        albumNameTextView = findViewById(R.id.albumNameTextView)
 
         val sha1 = getCertificateSHA1Fingerprint()
         sha1TextView.text = sha1 ?: "Could not retrieve SHA1"
@@ -210,6 +220,12 @@ class MainActivity : AppCompatActivity() {
                 spotifyAppRemote = appRemote
                 Log.d("MainActivity", "Connected to Spotify App Remote")
                 statusTextView.text = "Status: Connected to Spotify"
+
+                // Subscribe to PlayerState
+                appRemote.playerApi.subscribeToPlayerState().setEventCallback { playerState ->
+                    updateUI(playerState)
+                }
+
                 pendingUri?.let {
                     launchSpotify(it)
                     pendingUri = null
@@ -379,6 +395,24 @@ class MainActivity : AppCompatActivity() {
             }
         }
         return uriString
+    }
+
+    private fun updateUI(playerState: PlayerState) {
+        val track = playerState.track
+        if (track != null) {
+            trackTitleTextView.text = track.name
+            artistNameTextView.text = track.artist.name
+            albumNameTextView.text = track.album.name
+
+            spotifyAppRemote?.imagesApi?.getImage(track.imageUri)?.setResultCallback { bitmap ->
+                albumArtImageView.setImageBitmap(bitmap)
+            }
+        } else {
+            trackTitleTextView.text = "Not Playing"
+            artistNameTextView.text = ""
+            albumNameTextView.text = ""
+            albumArtImageView.setImageResource(android.R.drawable.ic_menu_report_image)
+        }
     }
 
     private fun logSHA1Fingerprint() {
