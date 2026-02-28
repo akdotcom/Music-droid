@@ -12,11 +12,18 @@ import android.widget.EditText
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
+import android.view.View
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import coil.load
 import com.spotify.android.appremote.api.ConnectionParams
 import com.spotify.android.appremote.api.Connector
 import com.spotify.android.appremote.api.SpotifyAppRemote
@@ -31,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private val REDIRECT_SCHEME = "com.akdotcom.musicdroid"
     private val REDIRECT_URI = "$REDIRECT_SCHEME://callback"
     private var spotifyAppRemote: SpotifyAppRemote? = null
+    private var exoPlayer: ExoPlayer? = null
     private var pendingUri: String? = null
 
     private var isConnecting = false
@@ -43,6 +51,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var authButton: Button
     private lateinit var statusTextView: TextView
     private lateinit var sha1TextView: TextView
+    private lateinit var artworkImageView: ImageView
+    private lateinit var trackTitleTextView: TextView
+    private lateinit var artistTextView: TextView
 
     private lateinit var authLauncher: ActivityResultLauncher<Intent>
 
@@ -66,6 +77,11 @@ class MainActivity : AppCompatActivity() {
         authButton = findViewById(R.id.authButton)
         statusTextView = findViewById(R.id.statusTextView)
         sha1TextView = findViewById(R.id.sha1TextView)
+        artworkImageView = findViewById(R.id.artworkImageView)
+        trackTitleTextView = findViewById(R.id.trackTitleTextView)
+        artistTextView = findViewById(R.id.artistTextView)
+
+        initializeExoPlayer()
 
         val sha1 = getCertificateSHA1Fingerprint()
         sha1TextView.text = sha1 ?: "Could not retrieve SHA1"
@@ -136,6 +152,65 @@ class MainActivity : AppCompatActivity() {
         spotifyAppRemote?.let {
             SpotifyAppRemote.disconnect(it)
             spotifyAppRemote = null
+        }
+        releaseExoPlayer()
+    }
+
+    private fun initializeExoPlayer() {
+        exoPlayer = ExoPlayer.Builder(this).build().apply {
+            addListener(object : Player.Listener {
+                override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+                    updateMetadataUI(mediaMetadata)
+                }
+
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    when (playbackState) {
+                        Player.STATE_READY -> Log.d("MainActivity", "ExoPlayer ready")
+                        Player.STATE_ENDED -> Log.d("MainActivity", "ExoPlayer ended")
+                        Player.STATE_BUFFERING -> Log.d("MainActivity", "ExoPlayer buffering")
+                        Player.STATE_IDLE -> Log.d("MainActivity", "ExoPlayer idle")
+                    }
+                }
+
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    Log.e("MainActivity", "ExoPlayer error: ${error.message}", error)
+                    Toast.makeText(this@MainActivity, "Playback error: ${error.message}", Toast.LENGTH_SHORT).show()
+                }
+            })
+        }
+    }
+
+    private fun releaseExoPlayer() {
+        exoPlayer?.release()
+        exoPlayer = null
+    }
+
+    private fun updateMetadataUI(metadata: MediaMetadata) {
+        val title = metadata.title ?: metadata.displayTitle
+        val artist = metadata.artist ?: metadata.albumArtist
+
+        if (title != null) {
+            trackTitleTextView.text = title
+            trackTitleTextView.visibility = View.VISIBLE
+        } else {
+            trackTitleTextView.visibility = View.GONE
+        }
+
+        if (artist != null) {
+            artistTextView.text = artist
+            artistTextView.visibility = View.VISIBLE
+        } else {
+            artistTextView.visibility = View.GONE
+        }
+
+        if (metadata.artworkUri != null) {
+            artworkImageView.load(metadata.artworkUri)
+            artworkImageView.visibility = View.VISIBLE
+        } else if (metadata.artworkData != null) {
+            artworkImageView.load(metadata.artworkData)
+            artworkImageView.visibility = View.VISIBLE
+        } else {
+            artworkImageView.visibility = View.GONE
         }
     }
 
@@ -293,6 +368,12 @@ class MainActivity : AppCompatActivity() {
     private fun handleIntent(intent: Intent) {
         // Handle Spotify Auth response from browser
         val uri = intent.data
+        if (uri != null && uri.scheme == "musicdroid") {
+            Log.d("MainActivity", "Received musicdroid intent: $uri")
+            processMusicDroidUri(uri.toString())
+            return
+        }
+
         if (uri != null && uri.scheme == REDIRECT_SCHEME && uri.host == "callback") {
             Log.d("MainActivity", "Received auth callback intent: $uri")
             val response = AuthorizationResponse.fromUri(uri)
@@ -346,6 +427,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchSpotify(uriString: String) {
+        if (uriString.startsWith("musicdroid:")) {
+            processMusicDroidUri(uriString)
+            return
+        }
+
+        // Stop ExoPlayer if it's playing
+        exoPlayer?.stop()
+        trackTitleTextView.visibility = View.GONE
+        artistTextView.visibility = View.GONE
+        artworkImageView.visibility = View.GONE
+
         val spotifyUri = convertToSpotifyUri(uriString)
         val remote = spotifyAppRemote
         if (remote != null && remote.isConnected) {
@@ -361,6 +453,35 @@ class MainActivity : AppCompatActivity() {
             pendingUri = spotifyUri
             Toast.makeText(this, "Connecting to Spotify...", Toast.LENGTH_SHORT).show()
             connectToSpotify()
+        }
+    }
+
+    private fun processMusicDroidUri(uriString: String) {
+        val uri = Uri.parse(uriString)
+        val mp3Url = uri.getQueryParameter("url") ?: uri.path?.substringAfter("/") ?: uri.host
+
+        if (mp3Url != null && (mp3Url.startsWith("http://") || mp3Url.startsWith("https://"))) {
+            playMp3(mp3Url)
+        } else {
+            Log.e("MainActivity", "Invalid musicdroid URI: $uriString")
+            Toast.makeText(this, "Invalid musicdroid URI", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun playMp3(url: String) {
+        Log.d("MainActivity", "Playing MP3: $url")
+        statusTextView.text = "Playing MP3: $url"
+
+        // Pause Spotify if connected
+        spotifyAppRemote?.playerApi?.pause()
+
+        exoPlayer?.let { player ->
+            player.stop()
+            player.clearMediaItems()
+            val mediaItem = MediaItem.fromUri(url)
+            player.setMediaItem(mediaItem)
+            player.prepare()
+            player.play()
         }
     }
 
