@@ -13,6 +13,7 @@ import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -30,6 +31,7 @@ import coil.load
 import com.spotify.android.appremote.api.ConnectionParams
 import com.spotify.android.appremote.api.Connector
 import com.spotify.android.appremote.api.SpotifyAppRemote
+import com.spotify.protocol.types.PlayerState
 import com.spotify.sdk.android.auth.AuthorizationClient
 import com.spotify.sdk.android.auth.AuthorizationRequest
 import com.spotify.sdk.android.auth.AuthorizationResponse
@@ -48,15 +50,16 @@ class MainActivity : AppCompatActivity() {
     private var lastAuthAttemptTime: Long = 0
     private val AUTH_COOLDOWN_MS = 10000 // 10 seconds cooldown to prevent loops
 
-    private lateinit var uriEditText: EditText
-    private lateinit var triggerButton: Button
-    private lateinit var reconnectButton: Button
-    private lateinit var authButton: Button
     private lateinit var statusTextView: TextView
-    private lateinit var sha1TextView: TextView
     private lateinit var artworkImageView: ImageView
     private lateinit var trackTitleTextView: TextView
     private lateinit var artistTextView: TextView
+    private lateinit var albumTextView: TextView
+
+    private lateinit var settingsButton: ImageButton
+    private lateinit var prevButton: ImageButton
+    private lateinit var playPauseButton: ImageButton
+    private lateinit var nextButton: ImageButton
 
     private lateinit var authLauncher: ActivityResultLauncher<Intent>
 
@@ -76,20 +79,18 @@ class MainActivity : AppCompatActivity() {
 
         hideSystemUI()
 
-        uriEditText = findViewById(R.id.uriEditText)
-        triggerButton = findViewById(R.id.triggerButton)
-        reconnectButton = findViewById(R.id.reconnectButton)
-        authButton = findViewById(R.id.authButton)
         statusTextView = findViewById(R.id.statusTextView)
-        sha1TextView = findViewById(R.id.sha1TextView)
         artworkImageView = findViewById(R.id.artworkImageView)
         trackTitleTextView = findViewById(R.id.trackTitleTextView)
         artistTextView = findViewById(R.id.artistTextView)
+        albumTextView = findViewById(R.id.albumTextView)
+
+        settingsButton = findViewById(R.id.settingsButton)
+        prevButton = findViewById(R.id.prevButton)
+        playPauseButton = findViewById(R.id.playPauseButton)
+        nextButton = findViewById(R.id.nextButton)
 
         initializeExoPlayer()
-
-        val sha1 = getCertificateSHA1Fingerprint()
-        sha1TextView.text = sha1 ?: "Could not retrieve SHA1"
 
         authLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val response = AuthorizationClient.getResponse(result.resultCode, result.data)
@@ -106,14 +107,6 @@ class MainActivity : AppCompatActivity() {
                     Log.e("MainActivity", "Auth error: ${response.error}")
                     statusTextView.text = "Status: Auth Error: ${response.error}"
                     Toast.makeText(this, "Auth failed: ${response.error}", Toast.LENGTH_LONG).show()
-                    // Browser fallback disabled per request to debug app-based flow
-                    /*
-                    if (response.error == "AUTHENTICATION_SERVICE_UNAVAILABLE") {
-                        Log.d("MainActivity", "Auth service unavailable (Spotify app issue), falling back to browser")
-                        statusTextView.text = "Status: Auth Service Unavailable, trying browser..."
-                        triggerBrowserAuthFlow()
-                    }
-                    */
                 }
                 else -> {
                     Log.d("MainActivity", "Auth flow cancelled or other: ${response.type}")
@@ -122,22 +115,37 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        triggerButton.setOnClickListener {
-            val uriString = uriEditText.text.toString()
-            if (uriString.isNotEmpty()) {
-                launchSpotify(uriString)
-            } else {
-                Toast.makeText(this, "Please enter a URI", Toast.LENGTH_SHORT).show()
+        settingsButton.setOnClickListener {
+            val intent = Intent(this, SettingsActivity::class.java)
+            startActivity(intent)
+        }
+
+        prevButton.setOnClickListener {
+            spotifyAppRemote?.playerApi?.skipPrevious()
+        }
+
+        playPauseButton.setOnClickListener {
+            spotifyAppRemote?.let { remote ->
+                remote.playerApi.playerState.setResultCallback { playerState ->
+                    if (playerState.isPaused) {
+                        remote.playerApi.resume()
+                    } else {
+                        remote.playerApi.pause()
+                    }
+                }
+            }
+
+            exoPlayer?.let { player ->
+                if (player.isPlaying) {
+                    player.pause()
+                } else if (player.playbackState != Player.STATE_IDLE) {
+                    player.play()
+                }
             }
         }
 
-        reconnectButton.setOnClickListener {
-            isConnecting = false // Reset state
-            connectToSpotify()
-        }
-
-        authButton.setOnClickListener {
-            triggerAuthFlow()
+        nextButton.setOnClickListener {
+            spotifyAppRemote?.playerApi?.skipNext()
         }
 
         // Check if the activity was launched by an NFC tag
@@ -183,6 +191,10 @@ class MainActivity : AppCompatActivity() {
                     updateMetadataUI(mediaMetadata)
                 }
 
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    updatePlayPauseButton(isPlaying)
+                }
+
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     when (playbackState) {
                         Player.STATE_READY -> Log.d("MainActivity", "ExoPlayer ready")
@@ -208,29 +220,26 @@ class MainActivity : AppCompatActivity() {
     private fun updateMetadataUI(metadata: MediaMetadata) {
         val title = metadata.title ?: metadata.displayTitle
         val artist = metadata.artist ?: metadata.albumArtist
+        val album = metadata.albumTitle
 
-        if (title != null) {
-            trackTitleTextView.text = title
-            trackTitleTextView.visibility = View.VISIBLE
-        } else {
-            trackTitleTextView.visibility = View.GONE
-        }
-
-        if (artist != null) {
-            artistTextView.text = artist
-            artistTextView.visibility = View.VISIBLE
-        } else {
-            artistTextView.visibility = View.GONE
-        }
+        trackTitleTextView.text = title ?: "Unknown Track"
+        artistTextView.text = artist ?: "Unknown Artist"
+        albumTextView.text = album ?: ""
 
         if (metadata.artworkUri != null) {
             artworkImageView.load(metadata.artworkUri)
-            artworkImageView.visibility = View.VISIBLE
         } else if (metadata.artworkData != null) {
             artworkImageView.load(metadata.artworkData)
-            artworkImageView.visibility = View.VISIBLE
         } else {
-            artworkImageView.visibility = View.GONE
+            artworkImageView.setImageResource(android.R.drawable.ic_menu_report_image)
+        }
+    }
+
+    private fun updatePlayPauseButton(isPlaying: Boolean) {
+        if (isPlaying) {
+            playPauseButton.setImageResource(android.R.drawable.ic_media_pause)
+        } else {
+            playPauseButton.setImageResource(android.R.drawable.ic_media_play)
         }
     }
 
@@ -246,52 +255,23 @@ class MainActivity : AppCompatActivity() {
                 // Not found
             }
         }
-
-        // Also check for the App Remote service specifically
-        val remoteIntent = Intent("com.spotify.android.appremote.api.SpotifyAppRemote")
-        val resolveInfo = packageManager.queryIntentServices(remoteIntent, 0)
-        if (resolveInfo.isNotEmpty()) {
-            Log.d("MainActivity", "Spotify App Remote service resolved to ${resolveInfo.size} apps")
-            for (info in resolveInfo) {
-                Log.d("MainActivity", "Service resolved to: ${info.serviceInfo.packageName}")
-            }
-        } else {
-            Log.e("MainActivity", "Spotify App Remote service could NOT be resolved!")
-        }
-
-        if (!found) {
-            Log.e("MainActivity", "No Spotify package found!")
-        }
         return found
     }
 
     private fun connectToSpotify() {
         if (!isSpotifyInstalled()) {
             statusTextView.text = "Status: Spotify not installed"
-            Toast.makeText(this, "Spotify app not found!", Toast.LENGTH_LONG).show()
             return
         }
 
-        if (isConnecting) {
-            Log.d("MainActivity", "Connection attempt already in progress, skipping")
-            return
-        }
-
-        if (CLIENT_ID == "YOUR_CLIENT_ID") {
-            val errorMsg = "CLIENT_ID is not set! Please set your Spotify Client ID in MainActivity.kt"
-            Log.e("MainActivity", errorMsg)
-            statusTextView.text = "Status: Error - Client ID not set"
-            Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show()
-            return
-        }
+        if (isConnecting) return
 
         isConnecting = true
-        Log.d("MainActivity", "Connecting to Spotify with ClientID: $CLIENT_ID and RedirectURI: $REDIRECT_URI")
+        Log.d("MainActivity", "Connecting to Spotify...")
         statusTextView.text = "Status: Connecting..."
 
-        // Set a timeout for the connection
         connectionHandler.removeCallbacks(connectionTimeoutRunnable)
-        connectionHandler.postDelayed(connectionTimeoutRunnable, 15000) // 15 seconds
+        connectionHandler.postDelayed(connectionTimeoutRunnable, 15000)
 
         val connectionParams = ConnectionParams.Builder(CLIENT_ID)
             .setRedirectUri(REDIRECT_URI)
@@ -304,7 +284,10 @@ class MainActivity : AppCompatActivity() {
                 connectionHandler.removeCallbacks(connectionTimeoutRunnable)
                 spotifyAppRemote = appRemote
                 Log.d("MainActivity", "Connected to Spotify App Remote")
-                statusTextView.text = "Status: Connected to Spotify"
+                statusTextView.text = "Status: Connected"
+
+                subscribeToPlayerState()
+
                 pendingUri?.let {
                     launchSpotify(it)
                     pendingUri = null
@@ -314,8 +297,7 @@ class MainActivity : AppCompatActivity() {
             override fun onFailure(throwable: Throwable) {
                 isConnecting = false
                 connectionHandler.removeCallbacks(connectionTimeoutRunnable)
-                Log.e("MainActivity", "Failed to connect to Spotify App Remote: ${throwable.message}", throwable)
-                Log.e("MainActivity", "Throwable type: ${throwable.javaClass.name}")
+                Log.e("MainActivity", "Failed to connect to Spotify App Remote: ${throwable.message}")
 
                 val errorMessage = throwable.message ?: "Unknown error"
                 statusTextView.text = "Status: Connection Failed: $errorMessage"
@@ -323,60 +305,45 @@ class MainActivity : AppCompatActivity() {
                 if (errorMessage.contains("Explicit user authorization is required", ignoreCase = true)) {
                     val currentTime = System.currentTimeMillis()
                     if (currentTime - lastAuthAttemptTime > AUTH_COOLDOWN_MS) {
-                        Log.d("MainActivity", "Explicit user authorization required, triggering auth flow")
                         lastAuthAttemptTime = currentTime
                         triggerAuthFlow()
-                    } else {
-                        Log.w("MainActivity", "Auth flow recently attempted, avoiding loop. Check SHA1 and Redirect URI.")
-                        val sha1 = getCertificateSHA1Fingerprint()
-                        statusTextView.text = "Status: Auth required. Verify SHA1 in Dashboard: $sha1"
-                        Toast.makeText(this@MainActivity, "Auth loop prevented. Please check your Spotify Dashboard settings.", Toast.LENGTH_LONG).show()
                     }
-                } else {
-                    val userFriendlyError = when {
-                        errorMessage.contains("Could not find Spotify app", ignoreCase = true) ->
-                            "Spotify app not found or not installed."
-                        errorMessage.contains("UserNotAuthorizedException", ignoreCase = true) ||
-                        errorMessage.contains("not authorized", ignoreCase = true) ->
-                            "User not authorized. Please ensure your SHA1 fingerprint and Redirect URI are registered in the Spotify Developer Dashboard."
-                        else -> "Connection failed: $errorMessage"
-                    }
-                    Log.e("MainActivity", "Connection failed with user-friendly error: $userFriendlyError")
-                    Toast.makeText(this@MainActivity, userFriendlyError, Toast.LENGTH_LONG).show()
-                    pendingUri = null // Clear pending URI on failure
                 }
             }
         })
     }
 
-    private fun getAuthRequest(): AuthorizationRequest {
-        return AuthorizationRequest.Builder(CLIENT_ID, AuthorizationResponse.Type.TOKEN, REDIRECT_URI)
-            .setScopes(arrayOf("streaming", "app-remote-control", "user-read-playback-state", "user-modify-playback-state"))
-            .build()
+    private fun subscribeToPlayerState() {
+        spotifyAppRemote?.playerApi?.subscribeToPlayerState()?.setEventCallback { playerState ->
+            updateSpotifyUI(playerState)
+        }
+    }
+
+    private fun updateSpotifyUI(playerState: PlayerState) {
+        val track = playerState.track
+        if (track != null) {
+            trackTitleTextView.text = track.name
+            artistTextView.text = track.artist.name
+            albumTextView.text = track.album.name
+
+            spotifyAppRemote?.imagesApi?.getImage(track.imageUri)?.setResultCallback { bitmap ->
+                artworkImageView.setImageBitmap(bitmap)
+            }
+
+            updatePlayPauseButton(!playerState.isPaused)
+        }
     }
 
     private fun triggerAuthFlow() {
-        val request = getAuthRequest()
-
-        Log.d("MainActivity", "Triggering app-based auth flow")
+        val request = AuthorizationRequest.Builder(CLIENT_ID, AuthorizationResponse.Type.TOKEN, REDIRECT_URI)
+            .setScopes(arrayOf("streaming", "app-remote-control", "user-read-playback-state", "user-modify-playback-state"))
+            .build()
         val intent = AuthorizationClient.createLoginActivityIntent(this, request)
-
-        // Log if the intent can be resolved
-        val componentName = intent.resolveActivity(packageManager)
-        Log.d("MainActivity", "Auth intent resolved to: $componentName")
-
         try {
             authLauncher.launch(intent)
         } catch (e: Exception) {
             Log.e("MainActivity", "Could not launch auth intent", e)
-            statusTextView.text = "Status: Error - Could not launch auth intent: ${e.message}"
-            // triggerBrowserAuthFlow() // Browser fallback disabled per request
         }
-    }
-
-    private fun triggerBrowserAuthFlow() {
-        val request = getAuthRequest()
-        AuthorizationClient.openLoginInBrowser(this, request)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -386,38 +353,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIntent(intent: Intent) {
-        // Handle Spotify Auth response from browser
+        val action = intent.getStringExtra("action")
+        if (action == "reconnect") {
+            isConnecting = false
+            connectToSpotify()
+            return
+        } else if (action == "auth") {
+            triggerAuthFlow()
+            return
+        }
+
         val uri = intent.data
         if (uri != null && uri.scheme == "musicdroid") {
-            Log.d("MainActivity", "Received musicdroid intent: $uri")
             processMusicDroidUri(uri.toString())
             return
         }
 
         if (uri != null && uri.scheme == REDIRECT_SCHEME && uri.host == "callback") {
-            Log.d("MainActivity", "Received auth callback intent: $uri")
-            val response = AuthorizationResponse.fromUri(uri)
-            when (response.type) {
-                AuthorizationResponse.Type.TOKEN -> {
-                    Log.d("MainActivity", "Browser auth success, token received")
-                    statusTextView.text = "Status: Browser Auth Success, connecting..."
-                    connectToSpotify()
-                }
-                AuthorizationResponse.Type.ERROR -> {
-                    Log.e("MainActivity", "Browser auth error: ${response.error}")
-                    statusTextView.text = "Status: Browser Auth Error: ${response.error}"
-                    Toast.makeText(this, "Browser auth failed: ${response.error}", Toast.LENGTH_LONG).show()
-                }
-                else -> {
-                    Log.d("MainActivity", "Browser auth cancelled or other: ${response.type}")
-                    statusTextView.text = "Status: Browser Auth ${response.type}"
-                }
-            }
+            connectToSpotify()
             return
         }
 
-        val action = intent.action
-        if (NfcAdapter.ACTION_NDEF_DISCOVERED == action) {
+        if (NfcAdapter.ACTION_NDEF_DISCOVERED == intent.action) {
             val rawMessages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, NdefMessage::class.java)
             } else {
@@ -429,6 +386,9 @@ class MainActivity : AppCompatActivity() {
                 val messages = Array(rawMessages.size) { i -> rawMessages[i] as NdefMessage }
                 processNdefMessages(messages)
             }
+        } else if (uri != null) {
+            // Probably from SettingsActivity manual trigger
+            launchSpotify(uri.toString())
         }
     }
 
@@ -437,9 +397,7 @@ class MainActivity : AppCompatActivity() {
             for (record in message.records) {
                 val payload = record.toUri()
                 if (payload != null) {
-                    val uriString = payload.toString()
-                    statusTextView.text = "NFC Tag Detected: $uriString"
-                    launchSpotify(uriString)
+                    launchSpotify(payload.toString())
                     return
                 }
             }
@@ -452,26 +410,14 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // Stop ExoPlayer if it's playing
         exoPlayer?.stop()
-        trackTitleTextView.visibility = View.GONE
-        artistTextView.visibility = View.GONE
-        artworkImageView.visibility = View.GONE
 
         val spotifyUri = convertToSpotifyUri(uriString)
         val remote = spotifyAppRemote
         if (remote != null && remote.isConnected) {
             remote.playerApi.play(spotifyUri)
-                .setResultCallback {
-                    Log.d("MainActivity", "Successfully started playing: $spotifyUri")
-                }
-                .setErrorCallback { throwable ->
-                    Log.e("MainActivity", "Error playing URI: ${throwable.message}", throwable)
-                    Toast.makeText(this, "Error playing: ${throwable.message}", Toast.LENGTH_SHORT).show()
-                }
         } else {
             pendingUri = spotifyUri
-            Toast.makeText(this, "Connecting to Spotify...", Toast.LENGTH_SHORT).show()
             connectToSpotify()
         }
     }
@@ -482,17 +428,10 @@ class MainActivity : AppCompatActivity() {
 
         if (mp3Url != null && (mp3Url.startsWith("http://") || mp3Url.startsWith("https://"))) {
             playMp3(mp3Url)
-        } else {
-            Log.e("MainActivity", "Invalid musicdroid URI: $uriString")
-            Toast.makeText(this, "Invalid musicdroid URI", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun playMp3(url: String) {
-        Log.d("MainActivity", "Playing MP3: $url")
-        statusTextView.text = "Playing MP3: $url"
-
-        // Pause Spotify if connected
         spotifyAppRemote?.playerApi?.pause()
 
         exoPlayer?.let { player ->
@@ -523,10 +462,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun logSHA1Fingerprint() {
-        val sha1 = getCertificateSHA1Fingerprint()
-        if (sha1 != null) {
-            Log.i("MainActivity", "Your SHA1 Fingerprint: $sha1")
-        }
+        getCertificateSHA1Fingerprint()?.let { Log.i("MainActivity", "Your SHA1 Fingerprint: $it") }
     }
 
     private fun getCertificateSHA1Fingerprint(): String? {
@@ -537,14 +473,12 @@ class MainActivity : AppCompatActivity() {
                 @Suppress("DEPRECATION")
                 packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES)
             }
-
             val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 packageInfo.signingInfo?.apkContentsSigners
             } else {
                 @Suppress("DEPRECATION")
                 packageInfo.signatures
             }
-
             if (signatures != null && signatures.isNotEmpty()) {
                 val md = MessageDigest.getInstance("SHA-1")
                 val publicKey = signatures[0].toByteArray()
