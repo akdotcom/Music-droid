@@ -1,17 +1,27 @@
 package com.akdotcom.musicdroid
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.security.MessageDigest
 
 class SettingsActivity : AppCompatActivity() {
+
+    private lateinit var mp3UrlEditText: EditText
+    private lateinit var generatedUriTextView: TextView
+    private lateinit var copyUriButton: Button
 
     private lateinit var uriEditText: EditText
     private lateinit var triggerButton: Button
@@ -25,6 +35,10 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
+        mp3UrlEditText = findViewById(R.id.mp3UrlEditText)
+        generatedUriTextView = findViewById(R.id.generatedUriTextView)
+        copyUriButton = findViewById(R.id.copyUriButton)
+
         uriEditText = findViewById(R.id.uriEditText)
         triggerButton = findViewById(R.id.triggerButton)
         reconnectButton = findViewById(R.id.reconnectButton)
@@ -35,6 +49,25 @@ class SettingsActivity : AppCompatActivity() {
 
         val sha1 = getCertificateSHA1Fingerprint()
         sha1TextView.text = sha1 ?: "Could not retrieve SHA1"
+
+        mp3UrlEditText.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val url = s.toString().trim()
+                val encodedUrl = Uri.encode(url)
+                val generatedUri = "musicdroid://play?url=$encodedUrl"
+                generatedUriTextView.text = generatedUri
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        copyUriButton.setOnClickListener {
+            val textToCopy = generatedUriTextView.text.toString()
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("musicdroid URI", textToCopy)
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(this, "URI copied to clipboard", Toast.LENGTH_SHORT).show()
+        }
 
         triggerButton.setOnClickListener {
             val uriStr = uriEditText.text.toString()
