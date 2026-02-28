@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">Music Droid</string>
-    <string name="test_mode_hint">Enter Spotify URI</string>
+    <string name="test_mode_hint">Enter Spotify or musicdroid URI</string>
     <string name="test_mode_button">Trigger Intent</string>
 </resources>

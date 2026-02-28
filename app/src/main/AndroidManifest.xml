@@ -55,6 +55,15 @@
                 <data android:scheme="spotify" />
             </intent-filter>
 
+            <!-- Intent filter for musicdroid URIs (NFC and deep links) -->
+            <intent-filter>
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="musicdroid" />
+            </intent-filter>
+
             <!-- Also handle generic NDEF records if needed,
                  but for now we focus on the requirement "interprets the tag's payload to retrieve a specific URI payload" -->
         </activity>
