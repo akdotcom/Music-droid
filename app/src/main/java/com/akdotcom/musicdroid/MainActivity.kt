@@ -51,6 +51,9 @@ class MainActivity : AppCompatActivity() {
     private var exoPlayer: ExoPlayer? = null
     private var pendingUri: String? = null
 
+    private var lastRequestedSpotifyUri: String? = null
+    private var lastRequestedExoPlayerUri: String? = null
+
     private var isConnecting = false
     private var lastAuthAttemptTime: Long = 0
     private val AUTH_COOLDOWN_MS = 10000 // 10 seconds cooldown to prevent loops
@@ -172,6 +175,8 @@ class MainActivity : AppCompatActivity() {
             spotifyAppRemote = null
         }
         releaseExoPlayer()
+        lastRequestedSpotifyUri = null
+        lastRequestedExoPlayerUri = null
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -203,9 +208,15 @@ class MainActivity : AppCompatActivity() {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     when (playbackState) {
                         Player.STATE_READY -> Log.d("MainActivity", "ExoPlayer ready")
-                        Player.STATE_ENDED -> Log.d("MainActivity", "ExoPlayer ended")
+                        Player.STATE_ENDED -> {
+                            Log.d("MainActivity", "ExoPlayer ended")
+                            lastRequestedExoPlayerUri = null
+                        }
                         Player.STATE_BUFFERING -> Log.d("MainActivity", "ExoPlayer buffering")
-                        Player.STATE_IDLE -> Log.d("MainActivity", "ExoPlayer idle")
+                        Player.STATE_IDLE -> {
+                            Log.d("MainActivity", "ExoPlayer idle")
+                            lastRequestedExoPlayerUri = null
+                        }
                     }
                 }
 
@@ -415,9 +426,19 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        val spotifyUri = convertToSpotifyUri(uriString)
+
+        // Check if this is already playing
+        if (spotifyUri == lastRequestedSpotifyUri) {
+            Log.d("MainActivity", "Ignore duplicate Spotify URI: $spotifyUri")
+            return
+        }
+
+        lastRequestedSpotifyUri = spotifyUri
+        lastRequestedExoPlayerUri = null
+
         exoPlayer?.stop()
 
-        val spotifyUri = convertToSpotifyUri(uriString)
         val remote = spotifyAppRemote
         if (remote != null && remote.isConnected) {
             remote.playerApi.play(spotifyUri)
@@ -432,6 +453,14 @@ class MainActivity : AppCompatActivity() {
         val mp3Url = uri.getQueryParameter("url") ?: uri.path?.substringAfter("/") ?: uri.host
 
         if (mp3Url != null && (mp3Url.startsWith("http://") || mp3Url.startsWith("https://"))) {
+            if (mp3Url == lastRequestedExoPlayerUri) {
+                Log.d("MainActivity", "Ignore duplicate musicdroid URI: $mp3Url")
+                return
+            }
+
+            lastRequestedExoPlayerUri = mp3Url
+            lastRequestedSpotifyUri = null
+
             if (mp3Url.lowercase().contains(".pls")) {
                 playPls(mp3Url)
             } else {
