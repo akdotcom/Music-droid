@@ -431,22 +431,27 @@ class MainActivity : AppCompatActivity() {
 
         val spotifyUri = convertToSpotifyUri(uriString)
 
-        // Check if this is already playing
-        if (spotifyUri == lastRequestedSpotifyUri) {
-            Log.d("MainActivity", "Ignore duplicate Spotify URI: $spotifyUri")
-            return
-        }
-
-        lastRequestedSpotifyUri = spotifyUri
-        lastRequestedExoPlayerUri = null
-
-        exoPlayer?.stop()
-
         val remote = spotifyAppRemote
         if (remote != null && remote.isConnected) {
+            // Check if this is already playing
+            if (spotifyUri == lastRequestedSpotifyUri) {
+                Log.d("MainActivity", "Ignore duplicate Spotify URI: $spotifyUri")
+                return
+            }
+
+            lastRequestedSpotifyUri = spotifyUri
+            lastRequestedExoPlayerUri = null
+            exoPlayer?.stop()
             remote.playerApi.play(spotifyUri)
         } else {
+            // If we are already connecting for this URI, ignore
+            if (spotifyUri == pendingUri) {
+                Log.d("MainActivity", "Already connecting for this URI: $spotifyUri")
+                return
+            }
             pendingUri = spotifyUri
+            lastRequestedExoPlayerUri = null
+            exoPlayer?.stop()
             connectToSpotify()
         }
     }
