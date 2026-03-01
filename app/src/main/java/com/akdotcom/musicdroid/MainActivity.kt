@@ -20,6 +20,11 @@ import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.URL
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -427,7 +432,37 @@ class MainActivity : AppCompatActivity() {
         val mp3Url = uri.getQueryParameter("url") ?: uri.path?.substringAfter("/") ?: uri.host
 
         if (mp3Url != null && (mp3Url.startsWith("http://") || mp3Url.startsWith("https://"))) {
-            playMp3(mp3Url)
+            if (mp3Url.lowercase().contains(".pls")) {
+                playPls(mp3Url)
+            } else {
+                playMp3(mp3Url)
+            }
+        }
+    }
+
+    private fun playPls(url: String) {
+        statusTextView.text = "Status: Parsing PLS..."
+        lifecycleScope.launch {
+            val streamUrl = withContext(Dispatchers.IO) {
+                parsePls(url)
+            }
+            if (streamUrl != null) {
+                playMp3(streamUrl)
+            } else {
+                statusTextView.text = "Status: Failed to parse PLS"
+                Toast.makeText(this@MainActivity, "Failed to parse PLS playlist", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private suspend fun parsePls(url: String): String? {
+        return try {
+            val content = URL(url).readText()
+            Log.d("MainActivity", "PLS Content: $content")
+            PlsParser.parse(content)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error fetching PLS", e)
+            null
         }
     }
 
