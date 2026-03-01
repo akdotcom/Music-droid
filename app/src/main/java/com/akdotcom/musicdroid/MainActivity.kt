@@ -1,5 +1,6 @@
 package com.akdotcom.musicdroid
 
+import android.app.PendingIntent
 import android.content.Intent
 import android.net.Uri
 import android.nfc.NdefMessage
@@ -70,6 +71,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var nextButton: ImageButton
 
     private lateinit var authLauncher: ActivityResultLauncher<Intent>
+
+    private var nfcAdapter: NfcAdapter? = null
+    private var pendingIntent: PendingIntent? = null
 
     private val connectionHandler = Handler(Looper.getMainLooper())
     private val connectionTimeoutRunnable = Runnable {
@@ -164,11 +168,34 @@ class MainActivity : AppCompatActivity() {
 
         // Log SHA1 for debugging purposes
         logSHA1Fingerprint()
+
+        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+        val intent = Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_MUTABLE
+        } else {
+            0
+        }
+        pendingIntent = PendingIntent.getActivity(this, 0, intent, flags)
     }
 
     override fun onStart() {
         super.onStart()
         connectToSpotify()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val nfc = nfcAdapter
+        val pending = pendingIntent
+        if (nfc != null && pending != null) {
+            nfc.enableForegroundDispatch(this, pending, null, null)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        nfcAdapter?.disableForegroundDispatch(this)
     }
 
     override fun onStop() {
@@ -393,7 +420,9 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        if (NfcAdapter.ACTION_NDEF_DISCOVERED == intent.action) {
+        if (NfcAdapter.ACTION_NDEF_DISCOVERED == intent.action ||
+            NfcAdapter.ACTION_TECH_DISCOVERED == intent.action ||
+            NfcAdapter.ACTION_TAG_DISCOVERED == intent.action) {
             val rawMessages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, NdefMessage::class.java)
             } else {
