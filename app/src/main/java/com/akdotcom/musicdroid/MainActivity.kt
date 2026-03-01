@@ -157,7 +157,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Check if the activity was launched by an NFC tag
-        handleIntent(intent)
+        // Only handle intent if this is not a configuration change (rotation)
+        if (savedInstanceState == null) {
+            handleIntent(intent)
+        }
 
         // Log SHA1 for debugging purposes
         logSHA1Fingerprint()
