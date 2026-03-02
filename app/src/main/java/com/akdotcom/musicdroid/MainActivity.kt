@@ -37,6 +37,8 @@ import coil.load
 import com.spotify.android.appremote.api.ConnectionParams
 import com.spotify.android.appremote.api.Connector
 import com.spotify.android.appremote.api.SpotifyAppRemote
+import com.spotify.protocol.client.Subscription
+import com.spotify.protocol.types.PlayerContext
 import com.spotify.protocol.types.PlayerState
 import com.spotify.sdk.android.auth.AuthorizationClient
 import com.spotify.sdk.android.auth.AuthorizationRequest
@@ -54,6 +56,14 @@ class MainActivity : AppCompatActivity() {
 
     private var lastRequestedSpotifyUri: String? = null
     private var lastRequestedExoPlayerUri: String? = null
+
+    private var currentSpotifyContextUri: String? = null
+    private var currentSpotifyTrackUri: String? = null
+    private var playerStateReceived = false
+    private var playerContextReceived = false
+
+    private var playerStateSubscription: Subscription<PlayerState>? = null
+    private var playerContextSubscription: Subscription<PlayerContext>? = null
 
     private var isConnecting = false
     private var lastAuthAttemptTime: Long = 0
@@ -200,6 +210,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        playerStateSubscription?.cancel()
+        playerStateSubscription = null
+        playerContextSubscription?.cancel()
+        playerContextSubscription = null
+
         spotifyAppRemote?.let {
             SpotifyAppRemote.disconnect(it)
             spotifyAppRemote = null
@@ -207,6 +222,10 @@ class MainActivity : AppCompatActivity() {
         releaseExoPlayer()
         lastRequestedSpotifyUri = null
         lastRequestedExoPlayerUri = null
+        currentSpotifyContextUri = null
+        currentSpotifyTrackUri = null
+        playerStateReceived = false
+        playerContextReceived = false
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -332,12 +351,10 @@ class MainActivity : AppCompatActivity() {
                 Log.d("MainActivity", "Connected to Spotify App Remote")
                 statusTextView.text = "Status: Connected"
 
+                playerStateReceived = false
+                playerContextReceived = false
                 subscribeToPlayerState()
-
-                pendingUri?.let {
-                    launchSpotify(it)
-                    pendingUri = null
-                }
+                subscribeToPlayerContext()
             }
 
             override fun onFailure(throwable: Throwable) {
@@ -360,14 +377,38 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun subscribeToPlayerState() {
-        spotifyAppRemote?.playerApi?.subscribeToPlayerState()?.setEventCallback { playerState ->
+        playerStateSubscription?.cancel()
+        playerStateSubscription = spotifyAppRemote?.playerApi?.subscribeToPlayerState()?.setEventCallback { playerState ->
+            playerStateReceived = true
             updateSpotifyUI(playerState)
+            checkPendingUri()
+        }
+    }
+
+    private fun subscribeToPlayerContext() {
+        playerContextSubscription?.cancel()
+        playerContextSubscription = spotifyAppRemote?.playerApi?.subscribeToPlayerContext()?.setEventCallback { playerContext ->
+            Log.d("MainActivity", "PlayerContext updated: ${playerContext.uri}")
+            currentSpotifyContextUri = playerContext.uri
+            playerContextReceived = true
+            checkPendingUri()
+        }
+    }
+
+    private fun checkPendingUri() {
+        if (playerStateReceived && playerContextReceived) {
+            pendingUri?.let {
+                Log.d("MainActivity", "Processing pending URI after receiving player state and context: $it")
+                launchSpotify(it)
+                pendingUri = null
+            }
         }
     }
 
     private fun updateSpotifyUI(playerState: PlayerState) {
         val track = playerState.track
         if (track != null) {
+            currentSpotifyTrackUri = track.uri
             trackTitleTextView.text = track.name
             artistTextView.text = track.artist.name
             albumTextView.text = track.album.name
@@ -462,9 +503,11 @@ class MainActivity : AppCompatActivity() {
 
         val remote = spotifyAppRemote
         if (remote != null && remote.isConnected) {
-            // Check if this is already playing
-            if (spotifyUri == lastRequestedSpotifyUri) {
-                Log.d("MainActivity", "Ignore duplicate Spotify URI: $spotifyUri")
+            // Check if this is already playing (either context or track)
+            if (spotifyUri == lastRequestedSpotifyUri ||
+                spotifyUri == currentSpotifyContextUri ||
+                spotifyUri == currentSpotifyTrackUri) {
+                Log.d("MainActivity", "Ignore duplicate Spotify URI: $spotifyUri (Context: $currentSpotifyContextUri, Track: $currentSpotifyTrackUri)")
                 return
             }
 
