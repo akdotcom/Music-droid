@@ -30,6 +30,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var reconnectButton: Button
     private lateinit var authButton: Button
     private lateinit var sha1TextView: TextView
+    private lateinit var copySha1Button: Button
     private lateinit var backButton: Button
     private lateinit var statusTextView: TextView
 
@@ -48,6 +49,7 @@ class SettingsActivity : AppCompatActivity() {
         reconnectButton = findViewById(R.id.reconnectButton)
         authButton = findViewById(R.id.authButton)
         sha1TextView = findViewById(R.id.sha1TextView)
+        copySha1Button = findViewById(R.id.copySha1Button)
         backButton = findViewById(R.id.backButton)
         statusTextView = findViewById(R.id.settingsStatusTextView)
 
@@ -82,6 +84,16 @@ class SettingsActivity : AppCompatActivity() {
             val clip = ClipData.newPlainText("musicdroid URI", textToCopy)
             clipboard.setPrimaryClip(clip)
             Toast.makeText(this, "URI copied to clipboard", Toast.LENGTH_SHORT).show()
+        }
+
+        copySha1Button.setOnClickListener {
+            val textToCopy = sha1TextView.text.toString()
+            if (textToCopy != "Loading SHA1..." && textToCopy != "Could not retrieve SHA1") {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("App SHA1", textToCopy)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this, "SHA1 copied to clipboard", Toast.LENGTH_SHORT).show()
+            }
         }
 
         triggerButton.setOnClickListener {
