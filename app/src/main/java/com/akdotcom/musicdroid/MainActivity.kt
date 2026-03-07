@@ -1,6 +1,7 @@
 package com.akdotcom.musicdroid
 
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.nfc.NdefMessage
@@ -47,7 +48,7 @@ import java.security.MessageDigest
 
 class MainActivity : AppCompatActivity() {
 
-    private val CLIENT_ID = "c17ce31e345e4449a860aa76fae70f14"
+    private var clientId: String? = null
     private val REDIRECT_SCHEME = "com.akdotcom.musicdroid"
     private val REDIRECT_URI = "$REDIRECT_SCHEME://callback"
     private var spotifyAppRemote: SpotifyAppRemote? = null
@@ -324,6 +325,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun connectToSpotify() {
+        val sharedPreferences = getSharedPreferences("MusicDroidPrefs", Context.MODE_PRIVATE)
+        clientId = sharedPreferences.getString("SpotifyClientId", null)
+
+        if (clientId.isNullOrBlank()) {
+            statusTextView.text = "Status: Spotify Client ID not set"
+            return
+        }
+
         if (!isSpotifyInstalled()) {
             statusTextView.text = "Status: Spotify not installed"
             return
@@ -338,7 +347,7 @@ class MainActivity : AppCompatActivity() {
         connectionHandler.removeCallbacks(connectionTimeoutRunnable)
         connectionHandler.postDelayed(connectionTimeoutRunnable, 15000)
 
-        val connectionParams = ConnectionParams.Builder(CLIENT_ID)
+        val connectionParams = ConnectionParams.Builder(clientId!!)
             .setRedirectUri(REDIRECT_URI)
             .showAuthView(true)
             .build()
@@ -422,7 +431,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun triggerAuthFlow() {
-        val request = AuthorizationRequest.Builder(CLIENT_ID, AuthorizationResponse.Type.TOKEN, REDIRECT_URI)
+        val sharedPreferences = getSharedPreferences("MusicDroidPrefs", Context.MODE_PRIVATE)
+        clientId = sharedPreferences.getString("SpotifyClientId", null)
+
+        if (clientId.isNullOrBlank()) {
+            statusTextView.text = "Status: Spotify Client ID not set"
+            Toast.makeText(this, "Please set Spotify Client ID in Settings", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val request = AuthorizationRequest.Builder(clientId!!, AuthorizationResponse.Type.TOKEN, REDIRECT_URI)
             .setScopes(arrayOf("streaming", "app-remote-control", "user-read-playback-state", "user-modify-playback-state"))
             .build()
         val intent = AuthorizationClient.createLoginActivityIntent(this, request)

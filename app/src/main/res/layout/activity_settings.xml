@@ -14,8 +14,30 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Test Mode / Settings"
+            android:text="Settings"
             android:textSize="24sp"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Spotify Configuration"
+            android:textStyle="bold"
+            android:layout_gravity="start"
+            android:layout_marginBottom="8dp"/>
+
+        <EditText
+            android:id="@+id/clientIdEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Spotify Client ID"
+            android:inputType="text"
+            android:layout_marginBottom="24dp"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@android:color/darker_gray"
             android:layout_marginBottom="24dp"/>
 
         <TextView

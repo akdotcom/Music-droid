@@ -19,6 +19,8 @@ import java.security.MessageDigest
 
 class SettingsActivity : AppCompatActivity() {
 
+    private lateinit var clientIdEditText: EditText
+
     private lateinit var mp3UrlEditText: EditText
     private lateinit var generatedUriTextView: TextView
     private lateinit var copyUriButton: Button
@@ -35,6 +37,8 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
+        clientIdEditText = findViewById(R.id.clientIdEditText)
+
         mp3UrlEditText = findViewById(R.id.mp3UrlEditText)
         generatedUriTextView = findViewById(R.id.generatedUriTextView)
         copyUriButton = findViewById(R.id.copyUriButton)
@@ -46,6 +50,18 @@ class SettingsActivity : AppCompatActivity() {
         sha1TextView = findViewById(R.id.sha1TextView)
         backButton = findViewById(R.id.backButton)
         statusTextView = findViewById(R.id.settingsStatusTextView)
+
+        val sharedPreferences = getSharedPreferences("MusicDroidPrefs", Context.MODE_PRIVATE)
+        val savedClientId = sharedPreferences.getString("SpotifyClientId", "")
+        clientIdEditText.setText(savedClientId)
+
+        clientIdEditText.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                sharedPreferences.edit().putString("SpotifyClientId", s.toString().trim()).apply()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
 
         val sha1 = getCertificateSHA1Fingerprint()
         sha1TextView.text = sha1 ?: "Could not retrieve SHA1"
