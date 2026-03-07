@@ -559,7 +559,7 @@ class MainActivity : AppCompatActivity() {
             lastRequestedExoPlayerUri = mp3Url
             lastRequestedSpotifyUri = null
 
-            if (mp3Url.lowercase().contains(".pls")) {
+            if (mp3Url.lowercase().contains(".pls") || mp3Url.lowercase().contains(".plu")) {
                 playPls(mp3Url)
             } else {
                 playMp3(mp3Url)
@@ -607,20 +607,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun convertToSpotifyUri(uriString: String): String {
-        if (uriString.startsWith("https://open.spotify.com/")) {
-            try {
-                val uri = Uri.parse(uriString)
-                val segments = uri.pathSegments
-                if (segments.size >= 2) {
-                    val type = segments[0]
-                    val id = segments[1]
-                    return "spotify:$type:$id"
-                }
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Failed to parse Spotify web URL: $uriString", e)
-            }
-        }
-        return uriString
+        return UriUtils.convertToSpotifyUri(uriString)
     }
 
     private fun logSHA1Fingerprint() {
