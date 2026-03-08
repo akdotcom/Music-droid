@@ -582,26 +582,35 @@ class MainActivity : AppCompatActivity() {
     private fun playPls(url: String) {
         statusTextView.text = "Status: Parsing PLS..."
         lifecycleScope.launch {
-            val streamUrl = withContext(Dispatchers.IO) {
-                parsePls(url)
+            val result = withContext(Dispatchers.IO) {
+                fetchAndParsePls(url)
             }
-            if (streamUrl != null) {
-                playMp3(streamUrl)
-            } else {
-                statusTextView.text = "Status: Failed to parse PLS"
-                Toast.makeText(this@MainActivity, "Failed to parse PLS playlist", Toast.LENGTH_SHORT).show()
+            when {
+                result.isSuccess -> {
+                    result.getOrNull()?.let { playMp3(it) }
+                }
+                else -> {
+                    val error = result.exceptionOrNull()?.message ?: "Unknown error"
+                    statusTextView.text = "Status: $error"
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
 
-    private suspend fun parsePls(url: String): String? {
+    private suspend fun fetchAndParsePls(url: String): Result<String> {
         return try {
             val content = URL(url).readText()
             Log.d("MainActivity", "PLS Content: $content")
-            PlsParser.parse(content)
+            val streamUrl = PlsParser.parse(content)
+            if (streamUrl != null) {
+                Result.success(streamUrl)
+            } else {
+                Result.failure(Exception("Failed to parse PLS content"))
+            }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error fetching PLS", e)
-            null
+            Result.failure(Exception("Failed to fetch PLS: ${e.message}"))
         }
     }
 

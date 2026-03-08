@@ -8,9 +8,13 @@ object PlsParser {
             val lines = content.lines()
             var streamUrl: String? = null
             for (line in lines) {
-                if (line.trim().startsWith("File1=", ignoreCase = true)) {
-                    streamUrl = line.substringAfter("=").trim()
-                    break
+                val trimmedLine = line.trim()
+                if (trimmedLine.startsWith("File1", ignoreCase = true)) {
+                    val afterKey = trimmedLine.substring(5).trim()
+                    if (afterKey.startsWith("=")) {
+                        streamUrl = afterKey.substring(1).trim()
+                        break
+                    }
                 }
             }
             streamUrl
