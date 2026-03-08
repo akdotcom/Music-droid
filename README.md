@@ -1,10 +1,13 @@
 # Music-droid
 A simple Android music player using the Spotify App Remote SDK and NFC. Think "Yoto Spotify Player."
 
+No 3d printer, no custom hardware, no soldering, and no flashing of operating systems needed. You'll just need to be patient copy/pasting text around and mucking with phone settings.
+
 ![Music Droid Demo](musicdroid_demo.gif)
 
 ## Requirements
-- An Android device running Android 7.0+ (I'm using a carrier-locked 2025 Moto G that cost $35)
+- An Android device with an NFC reader and running Android 7.0+ (I'm using a carrier-locked 2025 Moto G that cost $35).
+- Wifi.
 - A Spotify Preumium account (can *not* be a Kids account)
 - Some writeable NFC tags
 
