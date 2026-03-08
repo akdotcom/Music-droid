@@ -71,10 +71,13 @@ class MainActivity : AppCompatActivity() {
     private val AUTH_COOLDOWN_MS = 10000 // 10 seconds cooldown to prevent loops
 
     private lateinit var statusTextView: TextView
+    private lateinit var idleTextView: TextView
     private lateinit var artworkImageView: ImageView
     private lateinit var trackTitleTextView: TextView
     private lateinit var artistTextView: TextView
     private lateinit var albumTextView: TextView
+    private lateinit var metadataContainer: View
+    private lateinit var controlsContainer: View
 
     private lateinit var settingsButton: ImageButton
     private lateinit var prevButton: ImageButton
@@ -103,10 +106,13 @@ class MainActivity : AppCompatActivity() {
         hideSystemUI()
 
         statusTextView = findViewById(R.id.statusTextView)
+        idleTextView = findViewById(R.id.idleTextView)
         artworkImageView = findViewById(R.id.artworkImageView)
         trackTitleTextView = findViewById(R.id.trackTitleTextView)
         artistTextView = findViewById(R.id.artistTextView)
         albumTextView = findViewById(R.id.albumTextView)
+        metadataContainer = findViewById(R.id.metadataContainer)
+        controlsContainer = findViewById(R.id.controlsContainer)
 
         settingsButton = findViewById(R.id.settingsButton)
         prevButton = findViewById(R.id.prevButton)
@@ -114,6 +120,7 @@ class MainActivity : AppCompatActivity() {
         nextButton = findViewById(R.id.nextButton)
 
         initializeExoPlayer()
+        updateIdleState()
 
         authLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val response = AuthorizationClient.getResponse(result.resultCode, result.data)
@@ -268,6 +275,7 @@ class MainActivity : AppCompatActivity() {
                             lastRequestedExoPlayerUri = null
                         }
                     }
+                    updateIdleState()
                 }
 
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -299,6 +307,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             artworkImageView.setImageResource(android.R.drawable.ic_menu_report_image)
         }
+        updateIdleState()
     }
 
     private fun updatePlayPauseButton(isPlaying: Boolean) {
@@ -427,7 +436,10 @@ class MainActivity : AppCompatActivity() {
             }
 
             updatePlayPauseButton(!playerState.isPaused)
+        } else {
+            currentSpotifyTrackUri = null
         }
+        updateIdleState()
     }
 
     private fun triggerAuthFlow() {
@@ -603,6 +615,26 @@ class MainActivity : AppCompatActivity() {
             player.setMediaItem(mediaItem)
             player.prepare()
             player.play()
+        }
+    }
+
+    private fun updateIdleState() {
+        val exoIdle = exoPlayer?.let {
+            it.playbackState == Player.STATE_IDLE || it.playbackState == Player.STATE_ENDED || it.mediaItemCount == 0
+        } ?: true
+
+        val spotifyIdle = currentSpotifyTrackUri == null
+
+        if (exoIdle && spotifyIdle) {
+            idleTextView.visibility = View.VISIBLE
+            artworkImageView.visibility = View.GONE
+            metadataContainer.visibility = View.GONE
+            controlsContainer.visibility = View.GONE
+        } else {
+            idleTextView.visibility = View.GONE
+            artworkImageView.visibility = View.VISIBLE
+            metadataContainer.visibility = View.VISIBLE
+            controlsContainer.visibility = View.VISIBLE
         }
     }
 
