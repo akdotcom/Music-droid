@@ -6,7 +6,7 @@ No 3d printer, no custom hardware, no soldering, and no flashing of operating sy
 ![Music Droid Demo](musicdroid_demo.gif)
 
 ## Requirements
-- An Android device with an NFC reader and running Android 7.0+ (I'm using a carrier-locked 2025 Moto G that cost $35).
+- An Android device with an NFC reader and running Android 7.0+ (I'm using a carrier-locked 2025 Moto G that cost me $35).
 - Wifi.
 - A Spotify Preumium account (can *not* be a Kids account)
 - Some writeable NFC tags
