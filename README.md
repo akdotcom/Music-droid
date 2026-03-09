@@ -18,7 +18,7 @@ No 3d printer, no custom hardware, no soldering, and no flashing of operating sy
 4. In the device settings, disable the lock screen and enable tap to wake (i.e. double tap the screen wakes the device up and shows the home screen / currently running app)
 
 ## Download Music Droid
-You can download the latest APK from the **Actions** tab of this repository. Select the latest successful "Android CI" run and look for **app-release** in the Artifacts section.
+You can download the latest APK from the [**Actions** tab](https://github.com/akdotcom/Music-droid/actions?query=branch%3Amain) of this repository. Select the latest successful "Android CI" run and look for **app-release** in the Artifacts section.
 
 Install the app on your target phone. If you haven't already, you'll need to enable the "Install unknown apps" setting for the phone. Launch the app and click on the wrench logo to get to Settings.
 
