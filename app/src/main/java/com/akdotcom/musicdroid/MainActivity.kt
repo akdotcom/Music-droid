@@ -199,6 +199,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        initializeExoPlayer()
         connectToSpotify()
     }
 
@@ -252,6 +253,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initializeExoPlayer() {
+        if (exoPlayer != null) return
+
         exoPlayer = ExoPlayer.Builder(this).build().apply {
             addListener(object : Player.Listener {
                 override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
@@ -559,8 +562,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun processMusicDroidUri(uriString: String) {
+        Log.d("MainActivity", "Processing musicdroid URI: $uriString")
         val uri = Uri.parse(uriString)
         val mp3Url = uri.getQueryParameter("url") ?: uri.path?.substringAfter("/") ?: uri.host
+
+        Log.d("MainActivity", "Extracted URL: $mp3Url")
 
         if (mp3Url != null && (mp3Url.startsWith("http://") || mp3Url.startsWith("https://"))) {
             if (mp3Url == lastRequestedExoPlayerUri) {
@@ -576,6 +582,9 @@ class MainActivity : AppCompatActivity() {
             } else {
                 playMp3(mp3Url)
             }
+        } else {
+            Log.e("MainActivity", "Invalid or missing URL in musicdroid URI")
+            statusTextView.text = "Status: Invalid URI"
         }
     }
 
@@ -615,8 +624,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playMp3(url: String) {
+        Log.d("MainActivity", "Playing MP3/Stream: $url")
+        statusTextView.text = "Status: Playing Stream..."
         spotifyAppRemote?.playerApi?.pause()
 
+        initializeExoPlayer()
         exoPlayer?.let { player ->
             player.stop()
             player.clearMediaItems()
