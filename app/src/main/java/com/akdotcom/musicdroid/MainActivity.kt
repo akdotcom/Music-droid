@@ -131,6 +131,8 @@ class MainActivity : AppCompatActivity() {
                 AuthorizationResponse.Type.TOKEN -> {
                     Log.d("MainActivity", "Auth success via app, connecting to Spotify")
                     statusTextView.text = "Status: Auth Success, connecting..."
+                    val sharedPreferences = getSharedPreferences("MusicDroidPrefs", Context.MODE_PRIVATE)
+                    sharedPreferences.edit().putString("SpotifyAccessToken", response.accessToken).apply()
                     connectToSpotify()
                 }
                 AuthorizationResponse.Type.ERROR -> {
@@ -547,7 +549,31 @@ class MainActivity : AppCompatActivity() {
             lastRequestedSpotifyUri = spotifyUri
             lastRequestedExoPlayerUri = null
             exoPlayer?.stop()
-            remote.playerApi.play(spotifyUri)
+
+            // Handle speaker selection
+            val sharedPreferences = getSharedPreferences("MusicDroidPrefs", Context.MODE_PRIVATE)
+            val selectedDeviceId = sharedPreferences.getString("SpotifySelectedDeviceId", null)
+            val accessToken = sharedPreferences.getString("SpotifyAccessToken", null)
+
+            if (selectedDeviceId != null && accessToken != null) {
+                lifecycleScope.launch {
+                    val devices = withContext(Dispatchers.IO) {
+                        SpotifyWebApiHelper.getAvailableDevices(accessToken)
+                    }
+                    val isAvailable = devices?.any { it.id == selectedDeviceId } == true
+                    if (isAvailable) {
+                        Log.d("MainActivity", "Selected device $selectedDeviceId is available, transferring playback")
+                        withContext(Dispatchers.IO) {
+                            SpotifyWebApiHelper.transferPlayback(accessToken, selectedDeviceId)
+                        }
+                    } else {
+                        Log.d("MainActivity", "Selected device $selectedDeviceId is NOT available")
+                    }
+                    remote.playerApi.play(spotifyUri)
+                }
+            } else {
+                remote.playerApi.play(spotifyUri)
+            }
         } else {
             // If we are already connecting for this URI, ignore
             if (spotifyUri == pendingUri) {

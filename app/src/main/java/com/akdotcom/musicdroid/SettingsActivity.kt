@@ -10,16 +10,26 @@ import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.security.MessageDigest
 
 class SettingsActivity : AppCompatActivity() {
 
     private lateinit var clientIdEditText: EditText
+    private lateinit var deviceSpinner: Spinner
+    private lateinit var refreshDevicesButton: Button
 
     private lateinit var mp3UrlEditText: EditText
     private lateinit var generatedUriTextView: TextView
@@ -39,6 +49,8 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(R.layout.activity_settings)
 
         clientIdEditText = findViewById(R.id.clientIdEditText)
+        deviceSpinner = findViewById(R.id.deviceSpinner)
+        refreshDevicesButton = findViewById(R.id.refreshDevicesButton)
 
         mp3UrlEditText = findViewById(R.id.mp3UrlEditText)
         generatedUriTextView = findViewById(R.id.generatedUriTextView)
@@ -64,6 +76,15 @@ class SettingsActivity : AppCompatActivity() {
             }
             override fun afterTextChanged(s: Editable?) {}
         })
+
+        val savedDeviceName = sharedPreferences.getString("SpotifySelectedDeviceName", "None selected")
+        val initialAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, listOf(savedDeviceName))
+        initialAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        deviceSpinner.adapter = initialAdapter
+
+        refreshDevicesButton.setOnClickListener {
+            refreshDevices()
+        }
 
         val sha1 = getCertificateSHA1Fingerprint()
         sha1TextView.text = sha1 ?: "Could not retrieve SHA1"
@@ -125,6 +146,49 @@ class SettingsActivity : AppCompatActivity() {
 
         backButton.setOnClickListener {
             finish()
+        }
+    }
+
+    private fun refreshDevices() {
+        val sharedPreferences = getSharedPreferences("MusicDroidPrefs", Context.MODE_PRIVATE)
+        val accessToken = sharedPreferences.getString("SpotifyAccessToken", null)
+
+        if (accessToken == null) {
+            Toast.makeText(this, "No access token. Use Force Auth to log in.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        lifecycleScope.launch {
+            val devices = withContext(Dispatchers.IO) {
+                SpotifyWebApiHelper.getAvailableDevices(accessToken)
+            }
+
+            if (devices != null) {
+                val deviceNames = devices.map { it.name }
+                val adapter = ArrayAdapter(this@SettingsActivity, android.R.layout.simple_spinner_item, deviceNames)
+                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                deviceSpinner.adapter = adapter
+
+                val savedDeviceId = sharedPreferences.getString("SpotifySelectedDeviceId", null)
+                val selectedIndex = devices.indexOfFirst { it.id == savedDeviceId }
+                if (selectedIndex >= 0) {
+                    deviceSpinner.setSelection(selectedIndex)
+                }
+
+                deviceSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                        val selectedDevice = devices[position]
+                        sharedPreferences.edit()
+                            .putString("SpotifySelectedDeviceId", selectedDevice.id)
+                            .putString("SpotifySelectedDeviceName", selectedDevice.name)
+                            .apply()
+                    }
+
+                    override fun onNothingSelected(parent: AdapterView<*>?) {}
+                }
+            } else {
+                Toast.makeText(this@SettingsActivity, "Failed to fetch devices. Session may have expired.", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
