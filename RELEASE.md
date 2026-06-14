@@ -6,7 +6,6 @@ To build a signed release version of Music Droid on your MacBook Air, follow the
 
 1.  **Java 21**: Ensure you have Java 21 installed. You can check with `java -version`.
 2.  **Android SDK**: Ensure you have the Android SDK installed and `ANDROID_HOME` environment variable set.
-3.  **Spotify Developer Dashboard**: Ensure your Release SHA1 fingerprint is registered in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
 
 ## Step 1: Generate a Signing Key
 
@@ -40,19 +39,9 @@ Run the following command from the root of the project:
 The signed APK will be located at:
 `app/build/outputs/apk/release/app-release.apk`
 
-## Step 4: Get Release SHA1 for Spotify
-
-Spotify authentication requires the SHA1 fingerprint of your signing key. You can retrieve it using:
-
-```bash
-keytool -list -v -keystore "$KEYSTORE_PATH" -alias "$KEY_ALIAS"
-```
-
-Look for the `SHA1` value in the output and add it to your app's configuration in the Spotify Developer Dashboard.
-
 ## Building on GitHub Actions
 
-You can also build the signed release APK automatically using GitHub Actions. This ensures a stable SHA1 fingerprint without needing to build locally every time.
+You can also build the signed release APK automatically using GitHub Actions.
 
 ### 1. Prepare your Keystore
 

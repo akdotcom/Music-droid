@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Music Droid</title>
+    <style>
+        /* The Spotify embed is served cross-origin inside an <iframe>, so its
+           internals cannot be restyled. We can only control the page that hosts
+           it: background, sizing, and centering. Supported embed appearance
+           options (e.g. dark theme, compact vs. full height) are set via the
+           iframe API options below. */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            background: #000;
+            overflow: hidden;
+        }
+        #stage {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #embed {
+            width: 100%;
+            height: 100%;
+        }
+        #embed iframe {
+            border: 0;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="stage">
+        <div id="embed"></div>
+    </div>
+
+    <script>
+        (function () {
+            var iframeApi = null;     // the IFrameAPI handed to onSpotifyIframeApiReady
+            var controller = null;    // the EmbedController for the current embed
+            var currentUri = null;
+            var pendingUri = null;    // a uri requested before the API/controller was ready
+            var started = false;      // playback confirmed running for the current uri
+            var playRetries = 0;
+
+            function postEvent(obj) {
+                try {
+                    if (window.MusicDroidBridge && window.MusicDroidBridge.onEvent) {
+                        window.MusicDroidBridge.onEvent(JSON.stringify(obj));
+                    }
+                } catch (e) { /* bridge not attached */ }
+            }
+
+            // Browser autoplay policies normally block programmatic play(); in the
+            // Android WebView we disable that requirement (mediaPlaybackRequires-
+            // UserGesture=false), so calling play() once the embed is ready works.
+            // play() can be a no-op if fired a hair too early after loadUri, so we
+            // retry briefly until playback_update confirms we're rolling.
+            function attemptPlay() {
+                started = false;
+                playRetries = 0;
+                tryPlay();
+            }
+
+            function tryPlay() {
+                if (!controller || started) return;
+                try { controller.play(); } catch (e) { /* not ready yet */ }
+                playRetries++;
+                if (!started && playRetries < 6) {
+                    setTimeout(tryPlay, 500);
+                }
+            }
+
+            function createController(uri) {
+                currentUri = uri;
+                var element = document.getElementById('embed');
+                var options = {
+                    uri: uri,
+                    width: '100%',
+                    height: '100%',
+                    theme: 'dark'
+                };
+                iframeApi.createController(element, options, function (ctrl) {
+                    controller = ctrl;
+                    ctrl.addListener('ready', function () {
+                        postEvent({ type: 'ready', uri: currentUri });
+                        attemptPlay();
+                    });
+                    ctrl.addListener('playback_update', function (e) {
+                        var data = e && e.data;
+                        if (data && data.isPaused === false) {
+                            started = true;
+                        }
+                        postEvent({ type: 'playback_update', data: data });
+                    });
+                });
+            }
+
+            // Spotify calls this once the iframe API script has loaded.
+            window.onSpotifyIframeApiReady = function (IFrameAPI) {
+                iframeApi = IFrameAPI;
+                postEvent({ type: 'api_ready' });
+                if (pendingUri) {
+                    var uri = pendingUri;
+                    pendingUri = null;
+                    createController(uri);
+                }
+            };
+
+            // Public API invoked from Android via evaluateJavascript.
+            window.MusicDroid = {
+                load: function (uri) {
+                    if (!uri) return;
+                    if (!iframeApi) {
+                        // API script hasn't finished loading yet; play once it does.
+                        pendingUri = uri;
+                        return;
+                    }
+                    if (!controller) {
+                        createController(uri);
+                        return;
+                    }
+                    currentUri = uri;
+                    controller.loadUri(uri);
+                    attemptPlay();
+                },
+                play: function () { if (controller) { try { controller.play(); } catch (e) {} } },
+                pause: function () { if (controller) { try { controller.pause(); } catch (e) {} } },
+                resume: function () { if (controller) { try { controller.resume(); } catch (e) {} } },
+                togglePlay: function () { if (controller) { try { controller.togglePlay(); } catch (e) {} } }
+            };
+        })();
+    </script>
+    <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
+</body>
+</html>

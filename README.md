@@ -1,45 +1,45 @@
 # Music-droid
-A simple Android music player using the Spotify App Remote SDK and NFC. Think "Yoto Spotify Player."
+A simple Android music player using the Spotify iFrame embed (via an in-app WebView) and NFC. Think "Yoto Spotify Player."
 
 No 3d printer, no custom hardware, no soldering, and no flashing of operating systems needed. You'll just need to be patient copy/pasting text around and mucking with phone settings.
 
 ![Music Droid Demo](musicdroid_demo.gif)
 
+## How it works
+Music Droid hosts the [Spotify iFrame API](https://developer.spotify.com/documentation/embeds) inside an embedded WebView. When you tap an NFC tag containing a Spotify URI, the app loads that album/playlist/track into the embed and starts playback automatically. Autoplay (which browsers normally block) is enabled because the app owns the WebView and turns off the user-gesture requirement.
+
+Because playback runs through the web embed, you **don't** need the Spotify app installed and you **don't** need a Spotify Developer key. You just log in to Spotify once inside the app.
+
+`musicdroid://` URIs that point at an MP3 or PLS/PLU stream are still played locally via ExoPlayer.
+
 ## Requirements
 - An Android device with an NFC reader and running Android 7.0+ (I'm using a carrier-locked 2025 Moto G that cost me $35).
 - Wifi.
-- A Spotify Preumium account (can *not* be a Kids account)
-- Some writeable NFC tags
+- A Spotify Premium account (without Premium, the embed only plays ~30-second previews). Cannot be a Kids account.
+- Some writeable NFC tags.
 
 ## Dedicated device set-up
 1. If you're using a dedicated device, no need to log-in with your Google account. Skip all log-in prompts upon set-up and continue in guest mode.
-2. Since you won't be able to use Google Play, install Spotify via [Aurora Store](https://auroraoss.com/aurora-store) (scroll down and pick the `Release` option)
-3. Log-in to Spotify
-4. In the device settings, disable the lock screen and enable tap to wake (i.e. double tap the screen wakes the device up and shows the home screen / currently running app)
+2. In the device settings, disable the lock screen and enable tap to wake (i.e. double tap the screen wakes the device up and shows the home screen / currently running app).
 
 ## Download Music Droid
 You can download the latest APK from the [**Actions** tab](https://github.com/akdotcom/Music-droid/actions?query=branch%3Amain) of this repository. Select the latest successful "Android CI" run and look for **app-release** in the Artifacts section.
 
-Install the app on your target phone. If you haven't already, you'll need to enable the "Install unknown apps" setting for the phone. Launch the app and click on the wrench logo to get to Settings.
+Install the app on your target phone. If you haven't already, you'll need to enable the "Install unknown apps" setting for the phone.
 
-## Registering for a Spotify developer key
-In order to use Music Droid, you'll need to
-1. Create your own "app" in the [Spotify Developer Dashbaord](https://developer.spotify.com/dashboard).
-2. Add `com.akdotcom.musicdroid://callback` as your Spotify app's `Redirect URIs`.
-3. Add `com.akdotcom.musicdroid` under `Android packages`'s `Package name` along with the Music Droid Settings' SHA1 string under `Package SHA1 fingerprint`.
-4. Under `Which API/SDKs are you planning to use?` make sure you select `Android`.
-5. Save the app. Near the top of the app page in the Spotify Dashboard, you should see a header for `User Management`, click into that tab.
-7. Add the name and email address of the account you used to log-in to Spotify on this device.
-8. Once this is done, go back to your Spotify App profile and copy the `Client ID` and paste it into the relevant text box in Music Droid Settings.
+## Logging in to Spotify
+1. Launch Music Droid and tap the gear/settings icon.
+2. Tap **Log in to Spotify** and sign in with your Spotify Premium account inside the WebView.
+3. When you're done logging in, press the device **back** button to return to the player. Your session is remembered, so full tracks will play.
+4. Assuming you're using a dedicated device for Music Droid, you'll want to [pin](https://support.google.com/android/answer/9455138?hl=en) the app once you're logged in.
 
-## Configuring your device
-1. Make sure you've got your Spotify Client ID, SHA1, and Users all squared away (see above).
-3. Your first attempt to play music should trigger an Auth flow. If it doesn't (or there are problems) then go into Settings and try the `Reconnect` or `Force Auth` options.
-4. Assuming you're using a dedicated device for Music Droid, you'll want to [pin](https://support.google.com/android/answer/9455138?hl=en) the app once you've done authenticating.
+If you ever need to switch accounts, use **Log out** in Settings.
 
-  ## Making music
+## Making music
 1. Buy some NFC tags and download an NFC writing app, e.g. [NFC tools](https://www.wakdev.com/en/apps/nfc-tools-android.html).
 2. Go to a Spotify album, grab the "Share Link" URL. It'll be of the format: `https://open.spotify.com/album/STRING_OF_LETTERS?si=-STUFF_YOU_DONT_CARE_ABOUT`.
-3. Enter the URI `spotify:album:STRING_OF_LETTERS` as a "Custom URI" in your NFC app and then write it to the NFC tag
-4. Hold the NFC tag to the back of your phone while the screen is unlocked. Initially it'll ask which app should handle the URI intent: Spotify or Music Droid. Choose Music Droid `Always`.
+3. Enter the URI `spotify:album:STRING_OF_LETTERS` as a "Custom URI" in your NFC app and then write it to the NFC tag.
+4. Hold the NFC tag to the back of your phone while the screen is unlocked. Initially it'll ask which app should handle the URI intent: choose Music Droid `Always`.
 5. You're good to go!
+
+> Tip: the Settings screen has a "URI Generator" that turns a pasted Spotify share link (or MP3/PLS link) into the right `spotify:` / `musicdroid:` URI to write to your tag.

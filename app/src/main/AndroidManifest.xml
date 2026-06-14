@@ -5,34 +5,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.hardware.nfc" android:required="true" />
 
-    <queries>
-        <package android:name="com.spotify.music" />
-        <package android:name="com.spotify.lite" />
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="spotify" />
-        </intent>
-        <intent>
-            <action android:name="com.spotify.mobile.android.action.AUTHORIZE" />
-            <category android:name="android.intent.category.DEFAULT" />
-        </intent>
-        <intent>
-            <action android:name="com.spotify.android.appremote.api.SpotifyAppRemote" />
-            <category android:name="android.intent.category.DEFAULT" />
-        </intent>
-        <intent>
-            <action android:name="com.spotify.music.active" />
-        </intent>
-        <intent>
-            <action android:name="android.support.customtabs.action.CustomTabsService" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <category android:name="android.intent.category.BROWSABLE" />
-            <data android:scheme="https" />
-        </intent>
-    </queries>
-
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
@@ -73,21 +45,6 @@
             android:name=".SettingsActivity"
             android:exported="false"
             android:label="Settings" />
-
-        <activity
-            android:name="com.spotify.sdk.android.auth.RedirectUriReceiverActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="${redirectHostName}"
-                    android:scheme="${redirectSchemeName}" />
-            </intent-filter>
-        </activity>
 
     </application>
 
