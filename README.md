@@ -23,10 +23,10 @@ You can download the latest APK from the [**Actions** tab](https://github.com/ak
 Install the app on your target phone. If you haven't already, you'll need to enable the "Install unknown apps" setting for the phone. Launch the app and click on the wrench logo to get to Settings.
 
 ## Registering for a Spotify developer key
-In order to use Music Droid, you'll need to
+In order to use Music Droid, you'll need to set up an "app" in Spotify.  Follow the steps below from the device after you install the Music Droid app, as you will have to copy some configurations over.
 1. Create your own "app" in the [Spotify Developer Dashbaord](https://developer.spotify.com/dashboard).
 2. Add `com.akdotcom.musicdroid://callback` as your Spotify app's `Redirect URIs`.
-3. Add `com.akdotcom.musicdroid` under `Android packages`'s `Package name` along with the Music Droid Settings' SHA1 string under `Package SHA1 fingerprint`.
+3. Add `com.akdotcom.musicdroid` under `Android packages`'s `Package name` along with the SHA1 string found in the Music Droid Settingsunder `Package SHA1 fingerprint`.
 4. Under `Which API/SDKs are you planning to use?` make sure you select `Android`.
 5. Save the app. Near the top of the app page in the Spotify Dashboard, you should see a header for `User Management`, click into that tab.
 7. Add the name and email address of the account you used to log-in to Spotify on this device.
