@@ -7,10 +7,11 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 data class SpotifyDevice(
-    val id: String,
+    val id: String?,
     val name: String,
     val type: String,
-    val is_active: Boolean
+    val is_active: Boolean,
+    val is_restricted: Boolean = false
 )
 
 data class SpotifyDevicesResponse(
@@ -33,8 +34,9 @@ object SpotifyWebApiHelper {
             val responseCode = connection.responseCode
             if (responseCode == HttpURLConnection.HTTP_OK) {
                 val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+                Log.d(TAG, "getAvailableDevices response: $responseText")
                 val response = gson.fromJson(responseText, SpotifyDevicesResponse::class.java)
-                response.devices
+                response.devices.filter { it.id != null }
             } else {
                 Log.e(TAG, "getAvailableDevices failed with response code: $responseCode")
                 null

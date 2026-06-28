@@ -63,6 +63,14 @@
                 android:layout_marginStart="8dp"/>
         </LinearLayout>
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Note: Speakers may not appear if they are offline or haven't been used recently. Try playing music to them from the Spotify app first."
+            android:textSize="12sp"
+            android:fontStyle="italic"
+            android:layout_marginBottom="24dp"/>
+
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
